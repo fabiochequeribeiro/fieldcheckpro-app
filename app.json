@@ -1,32 +1,46 @@
 {
   "expo": {
-    "name": "checklist-elevador",
+    "name": "BRS Equipamentos",
     "slug": "checklist-elevador",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/icon.png",
+    "icon": "./assets/brs-icon.png",
     "userInterfaceStyle": "light",
     "newArchEnabled": true,
     "splash": {
-      "image": "./assets/splash-icon.png",
-      "resizeMode": "contain",
-      "backgroundColor": "#ffffff"
-    },
+    "image": "./assets/logo.png",
+    "resizeMode": "contain",
+    "backgroundColor": "#ffffff"
+  },
     "ios": {
       "supportsTablet": true
     },
     "android": {
       "adaptiveIcon": {
-        "foregroundImage": "./assets/adaptive-icon.png",
+        "foregroundImage": "./assets/brs-icon.png",
         "backgroundColor": "#ffffff"
       },
-      "edgeToEdgeEnabled": true
+      "edgeToEdgeEnabled": true,
+      "package": "com.fabiocheque.checklistelevador"
     },
     "web": {
       "favicon": "./assets/favicon.png"
     },
     "plugins": [
-      "expo-mail-composer"
-    ]
+      "expo-mail-composer",
+      "expo-asset",
+      "expo-font"
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "c230fd59-9bad-4e47-99a4-571153804e71"
+      }
+    },
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/c230fd59-9bad-4e47-99a4-571153804e71"
+    }
   }
 }
