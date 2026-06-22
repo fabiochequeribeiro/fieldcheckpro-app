@@ -1,695 +1,149 @@
 import QRCode from 'qrcode';
 import * as ImagePicker from 'expo-image-picker';
-import { Asset } from 'expo-asset';
-import { File } from 'expo-file-system';
-import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Picker } from '@react-native-picker/picker';
-import {
-  Alert,
-  Image,
-  KeyboardAvoidingView,
-  Modal,
-  Platform,
-  SafeAreaView,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
-  Linking,
-} from 'react-native';
-import { supabase } from '../supabase';
-import * as Sharing from 'expo-sharing';
-import * as MailComposer from 'expo-mail-composer';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Picker } from '@react-native-picker/picker';
+import { Alert, Image, KeyboardAvoidingView, Modal, Platform, SafeAreaView, ScrollView, Text, TextInput, TouchableOpacity, View, Linking, } from 'react-native';
+import { supabase } from '../supabase';
+import { obterEmpresaAtual, obterTecnicoAtualId, obterPapelAtual, usuarioPodeGerenciar } from '../utils/sessaoOperacional';
+
 import SignatureScreen from 'react-native-signature-canvas';
-import * as Print from 'expo-print';
 import { Ionicons } from '@expo/vector-icons';
-import CardPedido from '../components/CardPedido';
+import { useFocusEffect } from '@react-navigation/native';
+import { HomeScreenProvider } from './home/HomeScreenContext';
+import { styles } from './home/homeScreenStyles';
+import { MODELOS_INICIAIS } from '../data/modelosChecklistIniciais';
+import { gerarPdfVisita } from '../services/relatorioVisitaPdf';
+import { enviarMidiasVisita } from '../services/campoMidiaService';
+import { capturarLocalizacaoCampo } from '../services/campoLocalizacaoService';
+import HistoricoVisitasView from './home/HistoricoVisitasView';
+import LoginTecnicoView from './home/LoginTecnicoView';
+import PedidosView from './home/PedidosView';
+import DetalhePedidoView from './home/DetalhePedidoView';
+import BancoChecklistView from './home/BancoChecklistView';
+import VisitaTecnicaView from './home/VisitaTecnicaView';
+//import CardPedido from '../components/CardPedido';
 
-const LOGO_FIXO = require('../assets/logo.png');
-const STORAGE_MODELOS = '@brs_modelos_checklist';
-const STORAGE_VISITAS = '@brs_historico_visitas';
+const LOGO_FIXO = require('../assets/fieldcheck-icon.png');
+const STORAGE_MODELOS = '@fieldcheck_modelos_checklist';
+const STORAGE_VISITAS = '@fieldcheck_historico_servicos';
+const STORAGE_PEDIDOS_CACHE = '@fieldcheck_cache_pedidos';
+const STORAGE_PEDIDO_DETALHE_CACHE = '@fieldcheck_cache_pedido_detalhe';
+const STORAGE_EQUIPAMENTOS_CACHE = '@fieldcheck_cache_equipamentos_pedido';
+const STORAGE_CHECKLIST_CACHE = '@fieldcheck_cache_modelo_checklist';
+const STORAGE_SYNC_QUEUE = '@fieldcheck_fila_sincronizacao';
 
-const MODELOS_INICIAIS = {
-  'Elevador de Sementes': [
-  {
-    categoria: 'ESTRUTURA',
-    texto: 'Estrutura fixada e nivelada',
-  },
-  {
-    categoria: 'ESTRUTURA',
-    texto: 'Parafusos estruturais apertados',
-  },
-  {
-    categoria: 'CABECEIRA',
-    texto: 'Cabeçote superior conferido',
-  },
-  {
-    categoria: 'PÉ DO ELEVADOR',
-    texto: 'Pé inferior conferido',
-  },
-  {
-    categoria: 'CORREIA',
-    texto: 'Correia centralizada',
-  },
-  {
-    categoria: 'CANECAS',
-    texto: 'Canecas plásticas fixadas',
-  },
-  {
-    categoria: 'TRANSMISSÃO',
-    texto: 'Motor fixado corretamente',
-  },
-  {
-    categoria: 'TRANSMISSÃO',
-    texto: 'Sentido de rotação testado',
-  },
-  {
-    categoria: 'SEGURANÇA',
-    texto: 'Proteções instaladas',
-  },
-  {
-    categoria: 'TESTE OPERACIONAL',
-    texto: 'Teste sem carga realizado',
-  },
-  {
-    categoria: 'TESTE OPERACIONAL',
-    texto: 'Teste com produto realizado',
-  },
-],
-  'Correia Transportadora': [
-  {
-    categoria: 'ESTRUTURA',
-    texto: 'Estrutura alinhada e nivelada',
-  },
-  {
-    categoria: 'ESTRUTURA',
-    texto: 'Fixações e parafusos conferidos',
-  },
-  {
-    categoria: 'TAMBORES',
-    texto: 'Tambor motriz conferido',
-  },
-  {
-    categoria: 'TAMBORES',
-    texto: 'Tambor de retorno conferido',
-  },
-  {
-    categoria: 'CORREIA',
-    texto: 'Correia transportadora centralizada',
-  },
-  {
-    categoria: 'CORREIA',
-    texto: 'Correia tensionada corretamente',
-  },
-  {
-    categoria: 'CORREIA',
-    texto: 'Emenda da correia conferida',
-  },
-  {
-    categoria: 'ROLETES',
-    texto: 'Roletes girando livremente',
-  },
-  {
-    categoria: 'ROLETES',
-    texto: 'Roletes de carga e retorno conferidos',
-  },
-  {
-    categoria: 'RASPADORES',
-    texto: 'Raspadores instalados e regulados',
-  },
-  {
-    categoria: 'TRANSMISSÃO',
-    texto: 'Motor fixado corretamente',
-  },
-  {
-    categoria: 'TRANSMISSÃO',
-    texto: 'Redutor conferido e sem vazamentos',
-  },
-  {
-    categoria: 'SEGURANÇA',
-    texto: 'Proteções mecânicas instaladas',
-  },
-  {
-    categoria: 'SEGURANÇA',
-    texto: 'Adesivos e sinalizações conferidos',
-  },
-  {
-    categoria: 'TESTE OPERACIONAL',
-    texto: 'Teste em vazio realizado',
-  },
-  {
-    categoria: 'TESTE OPERACIONAL',
-    texto: 'Teste com produto realizado',
-  },
-],
-  'Rosca Transportadora': [
-  {
-    categoria: 'ESTRUTURA',
-    texto: 'Estrutura alinhada e nivelada',
-  },
-  {
-    categoria: 'ESTRUTURA',
-    texto: 'Fixações e parafusos conferidos',
-  },
-  {
-    categoria: 'CALHA',
-    texto: 'Calha conferida internamente',
-  },
-  {
-    categoria: 'CALHA',
-    texto: 'Tampas de inspeção fixadas',
-  },
-  {
-    categoria: 'HELICOIDE',
-    texto: 'Helicoide sem avarias',
-  },
-  {
-    categoria: 'HELICOIDE',
-    texto: 'Helicoide centralizado',
-  },
-  {
-    categoria: 'MANCAL',
-    texto: 'Mancais lubrificados',
-  },
-  {
-    categoria: 'MANCAL',
-    texto: 'Rolamentos sem ruídos',
-  },
-  {
-    categoria: 'TRANSMISSÃO',
-    texto: 'Motor fixado corretamente',
-  },
-  {
-    categoria: 'TRANSMISSÃO',
-    texto: 'Acoplamento conferido',
-  },
-  {
-    categoria: 'TRANSMISSÃO',
-    texto: 'Sentido de rotação testado',
-  },
-  {
-    categoria: 'SEGURANÇA',
-    texto: 'Proteções mecânicas instaladas',
-  },
-  {
-    categoria: 'SEGURANÇA',
-    texto: 'Adesivos e sinalizações conferidos',
-  },
-  {
-    categoria: 'TESTE OPERACIONAL',
-    texto: 'Teste em vazio realizado',
-  },
-  {
-    categoria: 'TESTE OPERACIONAL',
-    texto: 'Teste com produto realizado',
-  },
-],
-  'Mesa Densimétrica': [
-  {
-    categoria: 'ESTRUTURA',
-    texto: 'Estrutura alinhada e nivelada',
-  },
-  {
-    categoria: 'ESTRUTURA',
-    texto: 'Fixações e parafusos conferidos',
-  },
-  {
-    categoria: 'TAMPO',
-    texto: 'Tampo da mesa conferido',
-  },
-  {
-    categoria: 'TAMPO',
-    texto: 'Tela da mesa sem avarias',
-  },
-  {
-    categoria: 'VIBRAÇÃO',
-    texto: 'Sistema vibratório conferido',
-  },
-  {
-    categoria: 'VIBRAÇÃO',
-    texto: 'Molas e coxins conferidos',
-  },
-  {
-    categoria: 'AR',
-    texto: 'Caixa de ar vedada',
-  },
-  {
-    categoria: 'AR',
-    texto: 'Ventilador funcionando corretamente',
-  },
-  {
-    categoria: 'AR',
-    texto: 'Registro de ar ajustado',
-  },
-  {
-    categoria: 'TRANSMISSÃO',
-    texto: 'Motor fixado corretamente',
-  },
-  {
-    categoria: 'TRANSMISSÃO',
-    texto: 'Correias alinhadas e tensionadas',
-  },
-  {
-    categoria: 'TRANSMISSÃO',
-    texto: 'Polias conferidas',
-  },
-  {
-    categoria: 'ELÉTRICA',
-    texto: 'Sentido de rotação testado',
-  },
-  {
-    categoria: 'ELÉTRICA',
-    texto: 'Painel elétrico conferido',
-  },
-  {
-    categoria: 'SEGURANÇA',
-    texto: 'Proteções instaladas',
-  },
-  {
-    categoria: 'SEGURANÇA',
-    texto: 'Adesivos de segurança conferidos',
-  },
-  {
-    categoria: 'TESTE OPERACIONAL',
-    texto: 'Teste sem carga realizado',
-  },
-  {
-    categoria: 'TESTE OPERACIONAL',
-    texto: 'Teste com produto realizado',
-  },
-],
-  'Peneira Classificadora': [
-  {
-    categoria: 'ESTRUTURA',
-    texto: 'Estrutura alinhada e nivelada',
-  },
-  {
-    categoria: 'ESTRUTURA',
-    texto: 'Fixações e parafusos conferidos',
-  },
-  {
-    categoria: 'CORPO',
-    texto: 'Corpo da peneira conferido',
-  },
-  {
-    categoria: 'CORPO',
-    texto: 'Tampas e acessos fixados',
-  },
-  {
-    categoria: 'PENEIRAS',
-    texto: 'Peneiras instaladas corretamente',
-  },
-  {
-    categoria: 'PENEIRAS',
-    texto: 'Peneiras sem avarias',
-  },
-  {
-    categoria: 'PENEIRAS',
-    texto: 'Fixação das peneiras conferida',
-  },
-  {
-    categoria: 'VIBRAÇÃO',
-    texto: 'Sistema vibratório conferido',
-  },
-  {
-    categoria: 'VIBRAÇÃO',
-    texto: 'Molas e coxins conferidos',
-  },
-  {
-    categoria: 'TRANSMISSÃO',
-    texto: 'Motor fixado corretamente',
-  },
-  {
-    categoria: 'TRANSMISSÃO',
-    texto: 'Correias alinhadas e tensionadas',
-  },
-  {
-    categoria: 'TRANSMISSÃO',
-    texto: 'Polias conferidas',
-  },
-  {
-    categoria: 'ELÉTRICA',
-    texto: 'Sentido de rotação testado',
-  },
-  {
-    categoria: 'ELÉTRICA',
-    texto: 'Painel elétrico conferido',
-  },
-  {
-    categoria: 'SEGURANÇA',
-    texto: 'Proteções instaladas',
-  },
-  {
-    categoria: 'SEGURANÇA',
-    texto: 'Adesivos de segurança conferidos',
-  },
-  {
-    categoria: 'TESTE OPERACIONAL',
-    texto: 'Teste sem carga realizado',
-  },
-  {
-    categoria: 'TESTE OPERACIONAL',
-    texto: 'Teste com produto realizado',
-  },
-],
-  'Elevador Combinado': [
-  {
-    categoria: 'ESTRUTURA',
-    texto: 'Estrutura alinhada e nivelada',
-  },
-  {
-    categoria: 'ESTRUTURA',
-    texto: 'Fixações e parafusos conferidos',
-  },
-  {
-    categoria: 'ESTRUTURA',
-    texto: 'Chaparias e portas de inspeção conferidas',
-  },
-  {
-    categoria: 'PÉ DO ELEVADOR',
-    texto: 'Tambor inferior conferido',
-  },
-  {
-    categoria: 'PÉ DO ELEVADOR',
-    texto: 'Sistema de esticamento conferido',
-  },
-  {
-    categoria: 'CABECEIRA',
-    texto: 'Tambor superior conferido',
-  },
-  {
-    categoria: 'CABECEIRA',
-    texto: 'Sistema de descarga conferido',
-  },
-  {
-    categoria: 'CORREIA',
-    texto: 'Correia centralizada',
-  },
-  {
-    categoria: 'CORREIA',
-    texto: 'Correia tensionada corretamente',
-  },
-  {
-    categoria: 'CANECAS',
-    texto: 'Canecas fixadas corretamente',
-  },
-  {
-    categoria: 'CANECAS',
-    texto: 'Canecas sem avarias',
-  },
-  {
-    categoria: 'TRANSPORTE',
-    texto: 'Sistema de transporte interno conferido',
-  },
-  {
-    categoria: 'TRANSPORTE',
-    texto: 'Fluxo interno sem obstruções',
-  },
-  {
-    categoria: 'TRANSMISSÃO',
-    texto: 'Motor fixado corretamente',
-  },
-  {
-    categoria: 'TRANSMISSÃO',
-    texto: 'Redutor conferido',
-  },
-  {
-    categoria: 'TRANSMISSÃO',
-    texto: 'Acoplamentos conferidos',
-  },
-  {
-    categoria: 'ELÉTRICA',
-    texto: 'Sentido de rotação testado',
-  },
-  {
-    categoria: 'ELÉTRICA',
-    texto: 'Painel elétrico conferido',
-  },
-  {
-    categoria: 'SEGURANÇA',
-    texto: 'Proteções mecânicas instaladas',
-  },
-  {
-    categoria: 'SEGURANÇA',
-    texto: 'Adesivos e sinalizações conferidos',
-  },
-  {
-    categoria: 'TESTE OPERACIONAL',
-    texto: 'Teste em vazio realizado',
-  },
-  {
-    categoria: 'TESTE OPERACIONAL',
-    texto: 'Teste com produto realizado',
-  },
-],
-  'Elevador de Corrente': [
-  {
-    categoria: 'ESTRUTURA',
-    texto: 'Estrutura alinhada e nivelada',
-  },
-  {
-    categoria: 'ESTRUTURA',
-    texto: 'Fixações e parafusos conferidos',
-  },
-  {
-    categoria: 'ESTRUTURA',
-    texto: 'Chaparias e portas de inspeção conferidas',
-  },
-  {
-    categoria: 'PÉ DO ELEVADOR',
-    texto: 'Tambor inferior conferido',
-  },
-  {
-    categoria: 'PÉ DO ELEVADOR',
-    texto: 'Sistema de esticamento conferido',
-  },
-  {
-    categoria: 'CABECEIRA',
-    texto: 'Roda dentada superior conferida',
-  },
-  {
-    categoria: 'CABECEIRA',
-    texto: 'Sistema de descarga conferido',
-  },
-  {
-    categoria: 'CORRENTES',
-    texto: 'Correntes alinhadas corretamente',
-  },
-  {
-    categoria: 'CORRENTES',
-    texto: 'Tensão das correntes conferida',
-  },
-  {
-    categoria: 'CORRENTES',
-    texto: 'Emendas das correntes conferidas',
-  },
-  {
-    categoria: 'CANECAS',
-    texto: 'Canecas fixadas corretamente',
-  },
-  {
-    categoria: 'CANECAS',
-    texto: 'Canecas sem avarias',
-  },
-  {
-    categoria: 'TRANSMISSÃO',
-    texto: 'Motor fixado corretamente',
-  },
-  {
-    categoria: 'TRANSMISSÃO',
-    texto: 'Redutor conferido',
-  },
-  {
-    categoria: 'TRANSMISSÃO',
-    texto: 'Acoplamentos conferidos',
-  },
-  {
-    categoria: 'ELÉTRICA',
-    texto: 'Sentido de rotação testado',
-  },
-  {
-    categoria: 'ELÉTRICA',
-    texto: 'Painel elétrico conferido',
-  },
-  {
-    categoria: 'SEGURANÇA',
-    texto: 'Proteções mecânicas instaladas',
-  },
-  {
-    categoria: 'SEGURANÇA',
-    texto: 'Adesivos e sinalizações conferidos',
-  },
-  {
-    categoria: 'TESTE OPERACIONAL',
-    texto: 'Teste em vazio realizado',
-  },
-  {
-    categoria: 'TESTE OPERACIONAL',
-    texto: 'Teste com produto realizado',
-  },
-],
-  'Caixa': [
-  {
-    categoria: 'ESTRUTURA',
-    texto: 'Estrutura alinhada e nivelada',
-  },
-  {
-    categoria: 'ESTRUTURA',
-    texto: 'Fixações e parafusos conferidos',
-  },
-  {
-    categoria: 'ESTRUTURA',
-    texto: 'Chaparias sem avarias',
-  },
-  {
-    categoria: 'VEDAÇÃO',
-    texto: 'Vedação das tampas conferida',
-  },
-  {
-    categoria: 'VEDAÇÃO',
-    texto: 'Portas de inspeção conferidas',
-  },
-  {
-    categoria: 'FLUXO',
-    texto: 'Fluxo interno sem obstruções',
-  },
-  {
-    categoria: 'FLUXO',
-    texto: 'Descarga funcionando corretamente',
-  },
-  {
-    categoria: 'DESCARGA',
-    texto: 'Registro de descarga conferido',
-  },
-  {
-    categoria: 'DESCARGA',
-    texto: 'Acionamentos funcionando corretamente',
-  },
-  {
-    categoria: 'ELÉTRICA',
-    texto: 'Sensores instalados corretamente',
-  },
-  {
-    categoria: 'ELÉTRICA',
-    texto: 'Cabos e conexões conferidos',
-  },
-  {
-    categoria: 'SEGURANÇA',
-    texto: 'Proteções instaladas',
-  },
-  {
-    categoria: 'SEGURANÇA',
-    texto: 'Adesivos e sinalizações conferidos',
-  },
-  {
-    categoria: 'LIMPEZA',
-    texto: 'Interior limpo e sem resíduos',
-  },
-  {
-    categoria: 'LIMPEZA',
-    texto: 'Acabamento final conferido',
-  },
-  {
-    categoria: 'TESTE OPERACIONAL',
-    texto: 'Teste operacional realizado',
-  },
-],
-  'Torre Metálica': [
-  {
-    categoria: 'ESTRUTURA',
-    texto: 'Estrutura alinhada e aprumada',
-  },
-  {
-    categoria: 'ESTRUTURA',
-    texto: 'Nivelamento da base conferido',
-  },
-  {
-    categoria: 'ESTRUTURA',
-    texto: 'Parafusos estruturais apertados',
-  },
-  {
-    categoria: 'ESTRUTURA',
-    texto: 'Soldas estruturais conferidas',
-  },
-  {
-    categoria: 'ESTRUTURA',
-    texto: 'Chaparias sem avarias',
-  },
-  {
-    categoria: 'FIXAÇÃO',
-    texto: 'Chumbadores conferidos',
-  },
-  {
-    categoria: 'FIXAÇÃO',
-    texto: 'Bases e apoios fixados corretamente',
-  },
-  {
-    categoria: 'PLATAFORMAS',
-    texto: 'Plataformas instaladas corretamente',
-  },
-  {
-    categoria: 'PLATAFORMAS',
-    texto: 'Corrimãos conferidos',
-  },
-  {
-    categoria: 'PLATAFORMAS',
-    texto: 'Escadas fixadas corretamente',
-  },
-  {
-    categoria: 'ACESSO',
-    texto: 'Acessos seguros e liberados',
-  },
-  {
-    categoria: 'ACESSO',
-    texto: 'Pontos de inspeção conferidos',
-  },
-  {
-    categoria: 'PINTURA',
-    texto: 'Pintura e acabamento conferidos',
-  },
-  {
-    categoria: 'PINTURA',
-    texto: 'Ausência de corrosão',
-  },
-  {
-    categoria: 'SEGURANÇA',
-    texto: 'Proteções instaladas',
-  },
-  {
-    categoria: 'SEGURANÇA',
-    texto: 'Adesivos e sinalizações conferidos',
-  },
-  {
-    categoria: 'SEGURANÇA',
-    texto: 'Itens NR-12 conferidos',
-  },
-  {
-    categoria: 'FINALIZAÇÃO',
-    texto: 'Limpeza final realizada',
-  },
-  {
-    categoria: 'FINALIZAÇÃO',
-    texto: 'Inspeção final aprovada',
-  },
-],
-  'Painel Elétrico': [
-    'Disjuntores identificados',
-    'Fiação organizada',
-    'Botão de emergência funcionando',
-    'Inversor parametrizado',
-    'Teste elétrico realizado',
-  ],
-  'Moega': [
-    'Estrutura nivelada',
-    'Grade instalada',
-    'Sistema de descarga conferido',
-    'Fixações apertadas',
-    'Teste operacional realizado',
-  ],
-};
+function chaveCacheSegura(valor) {
+  return String(valor || '')
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9_-]+/g, '_');
+}
+
+async function lerJsonStorage(chave, fallback = null) {
+  try {
+    const texto = await AsyncStorage.getItem(chave);
+    return texto ? JSON.parse(texto) : fallback;
+  } catch (erro) {
+    console.log('Erro lendo cache local:', chave, erro);
+    return fallback;
+  }
+}
+
+async function salvarJsonStorage(chave, valor) {
+  try {
+    await AsyncStorage.setItem(chave, JSON.stringify(valor));
+  } catch (erro) {
+    console.log('Erro salvando cache local:', chave, erro);
+  }
+}
+
+function limparFotosPesadas(valor) {
+  if (Array.isArray(valor)) return valor.map(limparFotosPesadas);
+
+  if (valor && typeof valor === 'object') {
+    const limpo = {};
+    Object.entries(valor).forEach(([chave, item]) => {
+      const nome = String(chave).toLowerCase();
+      if (nome.includes('base64') || nome === 'imagem_base64' || nome === 'foto_base64') return;
+      if (typeof item === 'string' && item.length > 250000) return;
+      limpo[chave] = limparFotosPesadas(item);
+    });
+    return limpo;
+  }
+
+  return valor;
+}
+async function buscarTecnicoAtivoPorEmail(email) {
+  const emailLimpo = String(email || '').trim().toLowerCase();
+  if (!emailLimpo) return null;
+
+  const { data: tecnico, error } = await supabase
+    .from('tecnicos')
+    .select('*')
+    .eq('email', emailLimpo)
+    .eq('ativo', true)
+    .maybeSingle();
+
+  if (error) throw error;
+
+  const empresaTecnico = String(tecnico?.empresa || '').trim().toLowerCase();
+  const empresaAtual = String(obterEmpresaAtual() || '').trim().toLowerCase();
+
+  if (!tecnico || empresaTecnico !== empresaAtual) return null;
+
+  return tecnico;
+}
+
+function montarFiltroInSupabase(valores = []) {
+  const lista = valores.map((valor) => JSON.stringify(String(valor))).join(',');
+  return `(${lista})`;
+}
+
+async function cachearPedidoLocal(pedido) {
+  const numero = String(pedido?.numero_pedido || '').trim();
+  if (!numero) return;
+  await salvarJsonStorage(`${STORAGE_PEDIDO_DETALHE_CACHE}_${numero}`, {
+    ...pedido,
+    cached_at: new Date().toISOString(),
+  });
+}
+
+async function buscarPedidoLocal(numeroPedido) {
+  const numero = String(numeroPedido || '').trim();
+  if (!numero) return null;
+  const pedido = await lerJsonStorage(`${STORAGE_PEDIDO_DETALHE_CACHE}_${numero}`, null);
+  if (!pedido) return null;
+  if (!usuarioPodeGerenciar() && Number(pedido.tecnico_id) !== Number(obterTecnicoAtualId())) return null;
+  return pedido;
+}
+
+async function cachearEquipamentosPedidoLocal(numeroPedido, equipamentos) {
+  const numero = String(numeroPedido || '').trim();
+  if (!numero) return;
+  await salvarJsonStorage(
+    `${STORAGE_EQUIPAMENTOS_CACHE}_${numero}`,
+    limparFotosPesadas(equipamentos || [])
+  );
+}
+
+async function buscarEquipamentosPedidoLocal(numeroPedido) {
+  const numero = String(numeroPedido || '').trim();
+  if (!numero) return [];
+  return lerJsonStorage(`${STORAGE_EQUIPAMENTOS_CACHE}_${numero}`, []);
+}
+
+async function cachearChecklistLocal(tag, itens) {
+  const chave = chaveCacheSegura(tag);
+  if (!chave || !Array.isArray(itens) || itens.length === 0) return;
+  await salvarJsonStorage(`${STORAGE_CHECKLIST_CACHE}_${chave}`, itens);
+}
+
+async function buscarChecklistLocal(tag) {
+  const chave = chaveCacheSegura(tag);
+  if (!chave) return null;
+  return lerJsonStorage(`${STORAGE_CHECKLIST_CACHE}_${chave}`, null);
+}
 
 async function carregarModeloChecklist(nomeEquipamento) {
 
@@ -699,6 +153,7 @@ async function carregarModeloChecklist(nomeEquipamento) {
       .from('modelos_checklist')
       .select('*')
       .eq('equipamento', nomeEquipamento)
+      .eq('empresa', obterEmpresaAtual())
       .order('ordem');
 
     if (error) {
@@ -716,6 +171,32 @@ async function carregarModeloChecklist(nomeEquipamento) {
   } catch (err) {
 
     console.log(err);
+    return [];
+  }
+}
+
+async function carregarModeloGenericoAtribuido(modeloId) {
+  if (!modeloId) return [];
+  try {
+    const { data, error } = await supabase
+      .from('modelos_checklist_genericos_itens')
+      .select('texto, tipo_resposta, exige_foto, exige_observacao, ordem')
+      .eq('modelo_id', modeloId)
+      .eq('empresa', obterEmpresaAtual())
+      .order('ordem');
+    if (error) throw error;
+    return (data || []).map((item) => ({
+      texto: item.texto,
+      categoria: 'GERAL',
+      resposta: null,
+      obs: '',
+      foto: null,
+      ativo: true,
+      exige_foto: item.exige_foto === true,
+      exige_observacao: item.exige_observacao === true,
+    }));
+  } catch (error) {
+    console.log('Erro ao carregar modelo atribuído:', error);
     return [];
   }
 }
@@ -745,33 +226,39 @@ function criarChecklist(modelos, tipo = 'Elevador de Sementes') {
 }
 
 async function carregarChecklistDoSupabase(tipo) {
+  const tag = String(tipo || '').trim();
+
   try {
     const { data, error } = await supabase
       .from('modelos_checklist')
       .select('*')
-      .eq('tag', tipo)
+      .eq('tag', tag)
+      .eq('empresa', obterEmpresaAtual())
       .order('ordem');
 
     if (error) {
-      console.log('Erro ao carregar modelo:', error);
-      return null;
+      console.log('Erro ao carregar modelo online, tentando cache local:', error);
+      return await buscarChecklistLocal(tag);
     }
 
     if (!data || data.length === 0) {
-      return null;
+      return await buscarChecklistLocal(tag);
     }
 
-   return data.map((linha) => ({
-  texto: linha.item,
-  categoria: linha.categoria || 'GERAL',
-  ativo: true,
-  resposta: null,
-  obs: '',
-  foto: null,
-}));
+    const itens = data.map((linha) => ({
+      texto: linha.item,
+      categoria: linha.categoria || 'GERAL',
+      ativo: true,
+      resposta: null,
+      obs: '',
+      foto: null,
+    }));
+
+    await cachearChecklistLocal(tag, itens);
+    return itens;
   } catch (erro) {
-    console.log('Erro Supabase checklist:', erro);
-    return null;
+    console.log('Erro Supabase checklist, usando cache local:', erro);
+    return await buscarChecklistLocal(tag);
   }
 }
 
@@ -791,8 +278,7 @@ async function selecionarImagem(eqIndex) {
   const resultado =
     await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      quality: 0.7,
-      base64: true,
+      quality: 0.45,
     });
 
   if (!resultado.canceled) {
@@ -802,8 +288,6 @@ async function selecionarImagem(eqIndex) {
     novaLista[eqIndex].foto =
       resultado.assets[0].uri;
 
-    novaLista[eqIndex].fotoBase64 =
-      resultado.assets[0].base64;
 
     setEquipamentos(novaLista);
   }
@@ -821,30 +305,72 @@ function criarEquipamento(modelos, numero = 1, tipo = 'Elevador de Sementes') {
   };
 }
 
-export default function HomeScreen({ route }) {
+function SecaoEstavel({ titulo, children }) {
+  return <View style={styles.card}><Text style={styles.secaoTitulo}>{titulo}</Text>{children}</View>;
+}
+
+function CampoEstavel({ label, value, onChangeText, editable = true }) {
+  return (
+    <View style={styles.campoBox}>
+      <Text style={styles.label}>{label}</Text>
+      <TextInput
+        style={[styles.input, !editable ? { backgroundColor: '#f1f5f9', color: '#475467' } : null]}
+        value={value}
+        onChangeText={onChangeText}
+        placeholder={label}
+        editable={editable}
+        selectTextOnFocus={editable}
+      />
+    </View>
+  );
+}
+
+function BotaoOpcaoEstavel({ texto, ativo, tipo, onPress }) {
+  const estiloAtivo = tipo === 'ok' ? styles.botaoOkAtivo : styles.botaoNaoAtivo;
+  return (
+    <TouchableOpacity onPress={onPress} style={[styles.botaoOpcao, ativo ? estiloAtivo : null]}>
+      <Text style={[styles.botaoOpcaoTexto, ativo ? styles.botaoOpcaoTextoAtivo : null]}>{texto}</Text>
+    </TouchableOpacity>
+  );
+}
+
+export default function HomeScreen({ route, usuarioLogado }) {
   const [totalClientes, setTotalClientes] = useState(0);
-  const [totalVisitas, setTotalVisitas] = useState(0);  
+  const [totalVisitas, setTotalVisitas] = useState(0);
   const [totalEquipamentos, setTotalEquipamentos] = useState(0);
   const [totalPendentes, setTotalPendentes] = useState(0);
   const [totalNao, setTotalNao] = useState(0);
   const [ultimoCliente, setUltimoCliente] = useState('');
   const assinaturaRef = useRef(null);
+  const visitaScrollRef = useRef(null);
+  const ignorarSalvamentoLocalRef = useRef(false);
+  const usuarioInicial = route?.params?.usuarioLogado || usuarioLogado || null;
   const [tela, setTela] = useState(route?.params?.telaInicial || 'pedido');
+  const [usuario, setUsuario] = useState(usuarioInicial);
+
   useEffect(() => {
-  if (route?.params?.telaInicial) {
-    setTela(route.params.telaInicial);
-  }
-}, [route?.params?.telaInicial]);
-  const [usuario, setUsuario] = useState(null);
+    if (route?.params?.telaInicial) {
+      setTela(route.params.telaInicial);
+    }
+  }, [route?.params?.telaInicial]);
+
+  useEffect(() => {
+    if (usuarioInicial && !usuario) {
+      setUsuario(usuarioInicial);
+    }
+  }, [usuarioInicial, usuario]);
   const [emailLogin, setEmailLogin] = useState('');
   const [senhaLogin, setSenhaLogin] = useState('');
-  const [equipamentoAtual, setEquipamentoAtual] = useState(0);
+  const [equipamentoAtual, setEquipamentoAtual] = useState(null);
+  const [etapaVisita, setEtapaVisita] = useState('resumo');
+  const [equipamentosSalvos, setEquipamentosSalvos] = useState({});
   const [assinaturaAberta, setAssinaturaAberta] = useState(false);
   const [listaPedidos, setListaPedidos] = useState([]);
-  const [modelos, setModelos] = useState(MODELOS_INICIAIS);
+  const [modelos, setModelos] = useState({});
   const [historico, setHistorico] = useState([]);
   const [buscaHistorico, setBuscaHistorico] = useState('');
-  const [tipoBanco, setTipoBanco] = useState('Elevador de Sementes');   
+  const [acaoAposLogin, setAcaoAposLogin] = useState(null);
+  const [tipoBanco, setTipoBanco] = useState('Elevador de Sementes');
   const [novoTipo, setNovoTipo] = useState('');
   const [novoItemBanco, setNovoItemBanco] = useState('');
   const [editandoBancoIndex, setEditandoBancoIndex] = useState(null);
@@ -853,336 +379,1132 @@ export default function HomeScreen({ route }) {
   const [novoItemVisita, setNovoItemVisita] = useState('');
   const [editandoItemVisita, setEditandoItemVisita] = useState(null);
   const [textoEditandoVisita, setTextoEditandoVisita] = useState('');
-  const [categoriasAbertas, setCategoriasAbertas] = useState({}); 
-  const [dados, setDados] = useState({
-    numeroPedido: '',
-    cliente: '',
-    endereco: '',
-    cidade: '',
-    estado: '',
-    telefone: '',
-    emailCliente: '',
-    responsavel: '',
-    tecnico: '',
-    data: new Date().toLocaleDateString('pt-BR'),
-    observacoes: '',
-  });
+  const [categoriasAbertas, setCategoriasAbertas] = useState({});
+  const [dados, setDados] = useState({ numeroPedido: '', cliente: '', endereco: '', cidade: '', estado: '', telefone: '', emailCliente: '', responsavel: '', tecnico: '', data: new Date().toLocaleDateString('pt-BR'), observacoes: '', });
+  const STORAGE_KEY_LEGACY = '@fieldcheck_visita_em_andamento_atual';
+  const STORAGE_KEY_BASE = '@fieldcheck_visita_em_andamento';
 
-  const [equipamentos, setEquipamentos] = useState([criarEquipamento(MODELOS_INICIAIS, 1)]);
+  function chaveTecnicoSeguro() {
+    return String(
+      dados?.tecnico ||
+      usuario?.tecnico?.nome ||
+      usuario?.email ||
+      emailLogin ||
+      'sem_tecnico'
+    )
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9_-]+/g, '_');
+  }
+
+  function getStorageKeyFromPedido(pedido) {
+    const pedidoSeguro = String(pedido || '').trim();
+    if (!pedidoSeguro) return null;
+    return `${STORAGE_KEY_BASE}_${pedidoSeguro}_${chaveTecnicoSeguro()}`;
+  }
+
+  function getStorageKeyAtual() {
+    const pedidoAtual = String(
+      numeroPedido ||
+      dados?.numeroPedido ||
+      pedidoEncontrado?.numero_pedido ||
+      ''
+    ).trim();
+    return getStorageKeyFromPedido(pedidoAtual);
+  }
+
+  async function getItemSeguroStorage(chave, contexto = 'storage', removerSeGrande = true) {
+    try {
+      return await AsyncStorage.getItem(chave);
+    } catch (erro) {
+      const mensagem = String(erro?.message || erro || '');
+      console.log(`Erro lendo ${contexto}:`, erro);
+
+      if (removerSeGrande && (mensagem.includes('CursorWindow') || mensagem.includes('Row too big'))) {
+        try {
+          await AsyncStorage.removeItem(chave);
+          console.log(`Storage removido por estar grande demais: ${chave}`);
+        } catch (erroRemover) {
+          console.log(`Erro removendo storage grande ${chave}:`, erroRemover);
+        }
+      }
+
+      return null;
+    }
+  }
+
+  function limparBase64ParaStorage(valor) {
+    if (Array.isArray(valor)) {
+      return valor.map(limparBase64ParaStorage);
+    }
+
+    if (valor && typeof valor === 'object') {
+      const limpo = {};
+
+      Object.entries(valor).forEach(([chave, item]) => {
+        const chaveNormalizada = String(chave).toLowerCase();
+
+        if (
+          chaveNormalizada.includes('base64') ||
+          chaveNormalizada === 'imagem_base64' ||
+          chaveNormalizada === 'foto_base64'
+        ) {
+          return;
+        }
+
+        if (typeof item === 'string' && item.length > 250000) {
+          // Evita o erro Android: Row too big to fit into CursorWindow.
+          // Fotos e imagens grandes não devem ir para AsyncStorage.
+          return;
+        }
+
+        limpo[chave] = limparBase64ParaStorage(item);
+      });
+
+      return limpo;
+    }
+
+    return valor;
+  }
+
+  function prepararRegistroParaStorage(registro) {
+    return limparBase64ParaStorage(registro || {});
+  }
+
+  function prepararListaHistoricoParaStorage(lista) {
+    return (Array.isArray(lista) ? lista : [])
+      .map(prepararRegistroParaStorage)
+      .slice(0, 50);
+  }
+
+
+  function visitaTemProgresso(listaEquipamentos = equipamentos, salvos = equipamentosSalvos, assinaturaAtual = assinatura) {
+    const temEquipamentoSalvo = salvos && Object.keys(salvos).length > 0;
+    const temAssinatura = !!assinaturaAtual;
+
+    const temItemPreenchido = (listaEquipamentos || []).some((eq) => {
+      const temFotoEquipamento = !!(eq?.foto || eq?.fotoBase64);
+      const temDadosEquipamento = !!(
+        eq?.descricao ||
+        eq?.modelo ||
+        eq?.serie ||
+        eq?.observacao ||
+        eq?.observacoes
+      );
+
+      const temItem = (eq?.itens || []).some((item) => !!(
+        item?.resposta ||
+        item?.ok === true ||
+        item?.nao === true ||
+        item?.obs ||
+        item?.observacao ||
+        item?.foto ||
+        item?.fotoBase64
+      ));
+
+      return temFotoEquipamento || temDadosEquipamento || temItem;
+    });
+
+    return temEquipamentoSalvo || temAssinatura || temItemPreenchido;
+  }
+
+  function visitaValidaParaContinuar(visita) {
+    if (!visita) return false;
+    if (visita.finalizado === true || visita.status === 'finalizado') return false;
+    const lista = Array.isArray(visita.equipamentos) ? visita.equipamentos : [];
+    if (lista.length === 0) return false;
+    return visitaTemProgresso(lista, visita.equipamentosSalvos || {}, visita.assinatura || null);
+  }
+  const [equipamentos, setEquipamentos] = useState([]);
   const [assinatura, setAssinatura] = useState(null);
+  const [localizacaoInicio, setLocalizacaoInicio] = useState(null);
 
+  useEffect(() => {
+    if (tela === 'visita') {
+      setTimeout(() => {
+        visitaScrollRef.current?.scrollTo({ y: 0, animated: false });
+      }, 80);
+    }
+  }, [tela, etapaVisita, equipamentoAtual]);
+  function calcularResumoEquipamentos(listaEquipamentos = []) {
+    const todos = (listaEquipamentos || []).flatMap((eq) =>
+      (eq.itens || []).filter((i) => i.ativo !== false)
+    );
+
+    return {
+      total: todos.length,
+      ok: todos.filter((i) => i.resposta === 'OK' || i.ok === true).length,
+      nao: todos.filter((i) => i.resposta === 'NAO' || i.nao === true).length,
+      pendentes: todos.filter(
+        (i) =>
+          !i.resposta &&
+          i.ok !== true &&
+          i.nao !== true
+      ).length,
+    };
+  }
+
+  function montarRegistroParcial({
+    equipamentosOverride = equipamentos,
+    equipamentosSalvosOverride = equipamentosSalvos,
+    etapaOverride = etapaVisita,
+    equipamentoAtualOverride = equipamentoAtual,
+    finalizadoOverride = false,
+  } = {}) {
+    const equipamentosCompletos = (equipamentosOverride || []).map((eq) => ({
+      ...eq,
+      itens: (eq.itens || []).map((item) => ({ ...item })),
+    }));
+
+    const resumoParcial = calcularResumoEquipamentos(equipamentosCompletos);
+    const pedidoAtual = String(numeroPedido || dados.numeroPedido || pedidoEncontrado?.numero_pedido || '').trim();
+    const agora = new Date().toISOString();
+
+    return {
+      id: `local-${pedidoAtual || Date.now()}`,
+      numero_os: finalizadoOverride
+        ? `FC-${new Date().getFullYear()}-${Date.now()}`
+        : `PARCIAL-${pedidoAtual || Date.now()}`,
+      numeroPedido: pedidoAtual,
+      numero_pedido: pedidoAtual || null,
+      pedidoEncontrado,
+
+      dados: {
+        ...dados,
+        numeroPedido: pedidoAtual || dados.numeroPedido || '',
+      },
+
+      cliente: dados.cliente || pedidoEncontrado?.cliente || '',
+      emailCliente: dados.emailCliente || '',
+      propriedade: dados.propriedade,
+      cidade: dados.cidade || pedidoEncontrado?.cidade || '',
+      estado: dados.estado || '',
+      endereco: dados.endereco || '',
+      telefone: dados.telefone || dados.contato || '',
+      contato: dados.contato || '',
+      responsavel: dados.responsavel || '',
+      tecnico: dados.tecnico || usuario?.tecnico?.nome || usuario?.email || '',
+      data: dados.data,
+      data_visita: dados.data,
+      observacoes: dados.observacoes || '',
+
+      equipamentos: equipamentosCompletos,
+      equipamentosSalvos: equipamentosSalvosOverride,
+      equipamentoAtual: equipamentoAtualOverride,
+      etapaVisita: etapaOverride,
+
+      assinatura,
+      tecnico_id: obterTecnicoAtualId(),
+      localizacao_inicio: localizacaoInicio,
+      inicio_em: localizacaoInicio?.capturado_em || null,
+      resumo: resumoParcial,
+
+      total_ok: resumoParcial.ok,
+      total_nao: resumoParcial.nao,
+      total_pendentes: resumoParcial.pendentes,
+      total_equipamentos: equipamentosCompletos.length,
+
+      finalizado: finalizadoOverride,
+      status: finalizadoOverride ? 'finalizado' : 'em andamento',
+      criadoEm: agora,
+      updated_at_local: agora,
+      dataSalvamento: agora,
+      sincronizado: false,
+    };
+  }
+
+  async function salvarRegistroNoHistoricoLocal(registro) {
+    const salvo = await getItemSeguroStorage(STORAGE_VISITAS, 'histórico local');
+    const listaAtual = salvo ? JSON.parse(salvo) : [];
+
+    const registroSeguro = prepararRegistroParaStorage(registro);
+    const pedidoAtual = String(registroSeguro.numeroPedido || registroSeguro.numero_pedido || '');
+    const novaLista = prepararListaHistoricoParaStorage([
+      registroSeguro,
+      ...listaAtual.filter((item) => {
+        const mesmoPedido =
+          String(item.numeroPedido || item.numero_pedido || '') === pedidoAtual;
+
+        return !mesmoPedido;
+      }),
+    ]);
+
+    await AsyncStorage.setItem(STORAGE_VISITAS, JSON.stringify(novaLista));
+    setHistorico(novaLista.map(normalizarVisitaHistorico));
+  }
+
+  async function adicionarNaFilaSincronizacao(registro) {
+    try {
+      const filaAtual = await lerJsonStorage(STORAGE_SYNC_QUEUE, []);
+      const registroSeguro = prepararRegistroParaStorage({
+        ...registro,
+        aguardando_sync: true,
+        sincronizado: false,
+        fila_sync_em: new Date().toISOString(),
+      });
+
+      const pedidoAtual = String(registroSeguro.numero_pedido || registroSeguro.numeroPedido || '');
+      const novaFila = [
+        registroSeguro,
+        ...(Array.isArray(filaAtual) ? filaAtual : []).filter((item) => {
+          const mesmoPedido = String(item.numero_pedido || item.numeroPedido || '') === pedidoAtual;
+          const mesmoStatus = String(item.status || '') === String(registroSeguro.status || '');
+          return !(mesmoPedido && mesmoStatus);
+        }),
+      ].slice(0, 100);
+
+      await salvarJsonStorage(STORAGE_SYNC_QUEUE, novaFila);
+    } catch (erro) {
+      console.log('Erro adicionando visita na fila de sincronização:', erro);
+    }
+  }
+
+  async function processarFilaSincronizacao() {
+    try {
+      const fila = await lerJsonStorage(STORAGE_SYNC_QUEUE, []);
+      if (!Array.isArray(fila) || fila.length === 0) return;
+
+      const pendentes = [];
+
+      for (const registro of fila) {
+        const sucesso = await sincronizarVisitaParcialSupabase(registro, { reenfileirar: false });
+        if (!sucesso) pendentes.push(registro);
+      }
+
+      await salvarJsonStorage(STORAGE_SYNC_QUEUE, pendentes);
+      if (pendentes.length === 0) {
+        console.log('Fila de sincronização esvaziada com sucesso.');
+      }
+    } catch (erro) {
+      console.log('Erro processando fila de sincronização:', erro);
+    }
+  }
+
+  async function sincronizarVisitaParcialSupabase(registro, { reenfileirar = true } = {}) {
+    try {
+      if (!registro?.numero_pedido && !registro?.cliente) return false;
+
+      const payloadBasico = {
+        numero_os: registro.numero_os,
+        numero_pedido: registro.numero_pedido || null,
+        cliente: registro.cliente || '',
+        tecnico: registro.tecnico || '',
+        cidade: registro.cidade || '',
+        data_visita: registro.data_visita || registro.data || '',
+        observacoes: registro.observacoes || '',
+        total_ok: registro.total_ok || 0,
+        total_nao: registro.total_nao || 0,
+        total_pendentes: registro.total_pendentes || 0,
+        total_equipamentos: registro.total_equipamentos || 0,
+        finalizado: registro.finalizado === true || registro.status === 'finalizado',
+        status: registro.finalizado === true || registro.status === 'finalizado' ? 'finalizado' : 'em andamento',
+        empresa: obterEmpresaAtual(),
+        tecnico_id: obterTecnicoAtualId(),
+        criado_por: usuario?.id || null,
+        pedido_id: registro.pedidoEncontrado?.id || null,
+      };
+
+      const { data: existente, error: erroBusca } = await supabase
+        .from('visitas')
+        .select('id')
+        .eq('numero_pedido', registro.numero_pedido)
+        .eq('empresa', obterEmpresaAtual())
+        .neq('status', 'finalizado')
+        .order('id', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (erroBusca) {
+        console.log('ERRO BUSCAR VISITA PARCIAL:', erroBusca);
+      }
+
+      let idVisita = existente?.id;
+
+      if (idVisita) {
+        const { error: erroUpdate } = await supabase
+          .from('visitas')
+          .update(payloadBasico)
+          .eq('id', idVisita)
+          .eq('empresa', obterEmpresaAtual());
+
+        if (erroUpdate) {
+          console.log('ERRO UPDATE VISITA PARCIAL:', erroUpdate);
+          if (reenfileirar) await adicionarNaFilaSincronizacao(registro);
+          return false;
+        }
+      } else {
+        const { data: inserida, error: erroInsert } = await supabase
+          .from('visitas')
+          .insert([payloadBasico])
+          .select('id')
+          .single();
+
+        if (erroInsert) {
+          console.log('ERRO INSERT VISITA PARCIAL:', erroInsert);
+          if (reenfileirar) await adicionarNaFilaSincronizacao(registro);
+          return false;
+        }
+
+        idVisita = inserida?.id;
+      }
+
+      if (idVisita) {
+        const { error: erroCompleto } = await supabase
+          .from('visitas')
+          .update({
+            dados: registro.dados,
+            equipamentos: registro.equipamentos,
+            assinatura: registro.assinatura,
+            resumo: registro.resumo,
+            empresa: obterEmpresaAtual(),
+          })
+          .eq('id', idVisita)
+          .eq('empresa', obterEmpresaAtual());
+
+        if (erroCompleto) {
+          console.log(
+            'Aviso: parcial básica salva, mas faltam colunas jsonb completas em visitas:',
+            erroCompleto.message
+          );
+        }
+      }
+
+      console.log('Visita parcial sincronizada no Supabase');
+      return true;
+    } catch (erro) {
+      console.log('Erro sincronizar visita parcial:', erro);
+      if (reenfileirar) await adicionarNaFilaSincronizacao(registro);
+      return false;
+    }
+  }
+
+  async function salvarVisitaLocal({
+    sincronizarSupabase = false,
+    equipamentosOverride = equipamentos,
+    equipamentosSalvosOverride = equipamentosSalvos,
+    etapaOverride = etapaVisita,
+    equipamentoAtualOverride = equipamentoAtual,
+    finalizadoOverride = false,
+  } = {}) {
+    try {
+      if (ignorarSalvamentoLocalRef.current) {
+        return;
+      }
+
+      const pedidoAtualSalvar = String(
+        numeroPedido || dados?.numeroPedido || pedidoEncontrado?.numero_pedido || ''
+      ).trim();
+
+      if (!pedidoAtualSalvar) {
+        return;
+      }
+
+      // Não grava visita vazia quando o técnico apenas abriu o pedido.
+      // O salvamento parcial só começa depois de existir preenchimento real
+      // ou quando o usuário salva um equipamento/assina/finaliza.
+      if (
+        !finalizadoOverride &&
+        !visitaTemProgresso(equipamentosOverride, equipamentosSalvosOverride, assinatura)
+      ) {
+        return;
+      }
+
+      const registro = montarRegistroParcial({
+        equipamentosOverride,
+        equipamentosSalvosOverride,
+        etapaOverride,
+        equipamentoAtualOverride,
+        finalizadoOverride,
+      });
+
+      const chaveSalvar = getStorageKeyFromPedido(registro.numeroPedido || registro.numero_pedido || pedidoAtualSalvar);
+      if (!chaveSalvar) return;
+
+      await AsyncStorage.setItem(chaveSalvar, JSON.stringify(prepararRegistroParaStorage(registro)));
+      // remove chave antiga/global para evitar alerta fantasma ao abrir o app
+      await AsyncStorage.removeItem(STORAGE_KEY_LEGACY);
+      await salvarRegistroNoHistoricoLocal(registro);
+      buscarListaPedidos();
+
+      if (sincronizarSupabase) {
+        const sincronizado = await sincronizarVisitaParcialSupabase(registro);
+        if (!sincronizado) {
+          await adicionarNaFilaSincronizacao(registro);
+        }
+      }
+
+      console.log('Visita salva localmente:', chaveSalvar);
+    } catch (error) {
+      console.log('Erro ao salvar visita local:', error);
+    }
+  }
+
+  function pedidoDaVisitaLocal(visita) {
+    return String(
+      visita?.numeroPedido ||
+      visita?.numero_pedido ||
+      visita?.dados?.numeroPedido ||
+      visita?.pedidoEncontrado?.numero_pedido ||
+      ''
+    ).trim();
+  }
+
+  function tecnicoDaVisitaLocal(visita) {
+    return String(
+      visita?.tecnico ||
+      visita?.dados?.tecnico ||
+      visita?.usuario?.email ||
+      ''
+    ).trim().toLowerCase();
+  }
+
+  function tecnicoAtualLogado() {
+    return String(
+      dados?.tecnico ||
+      usuario?.tecnico?.nome ||
+      usuario?.email ||
+      emailLogin ||
+      ''
+    ).trim().toLowerCase();
+  }
+
+  function carregarVisitaSalvaNaTela(visita) {
+    if (!visita) return;
+
+    setNumeroPedido(pedidoDaVisitaLocal(visita));
+    setPedidoEncontrado(visita.pedidoEncontrado || null);
+    setDados(visita.dados || {
+      numeroPedido: pedidoDaVisitaLocal(visita),
+      cliente: '',
+      endereco: '',
+      cidade: '',
+      estado: '',
+      telefone: '',
+      emailCliente: '',
+    });
+    setEquipamentos(
+      (visita.equipamentos || []).map((eq) => ({
+        ...eq,
+        itens: eq.itens || [],
+      }))
+    );
+    setEquipamentoAtual(visita.equipamentoAtual ?? null);
+    setEtapaVisita(visita.etapaVisita || 'resumo');
+    setEquipamentosSalvos(visita.equipamentosSalvos || {});
+    setAssinatura(visita.assinatura || null);
+    setLocalizacaoInicio(visita.localizacao_inicio || null);
+    setTela('visita');
+  }
+
+  async function buscarVisitaEmAndamentoDoPedido(pedidoDigitado) {
+    const pedidoAtualBusca = String(pedidoDigitado || '').trim();
+    if (!pedidoAtualBusca) return null;
+
+    const chavePedido = getStorageKeyFromPedido(pedidoAtualBusca);
+
+    try {
+      const dadosSalvos = chavePedido ? await getItemSeguroStorage(chavePedido, 'visita por chave') : null;
+      if (dadosSalvos) {
+        const visita = JSON.parse(dadosSalvos);
+        const historicoSalvo = await getItemSeguroStorage(STORAGE_VISITAS, 'historico para limpar rascunho');
+        const historicoLocal = historicoSalvo ? JSON.parse(historicoSalvo) : [];
+        const finalizadaMaisRecente = (Array.isArray(historicoLocal) ? historicoLocal : [])
+          .map(normalizarVisitaHistorico)
+          .filter((item) => {
+            const mesmoPedido = String(item.numeroPedido || item.numero_pedido || item.dados?.numeroPedido || '') === pedidoAtualBusca;
+            return mesmoPedido && (item.finalizado === true || item.status === 'finalizado' || item.status === 'enviado');
+          })
+          .sort((a, b) => String(b.finalizado_em || b.criadoEm || '').localeCompare(String(a.finalizado_em || a.criadoEm || '')))[0];
+
+        const dataRascunho = Date.parse(visita.updated_at_local || visita.dataSalvamento || visita.criadoEm || '') || 0;
+        const dataFinalizacao = Date.parse(finalizadaMaisRecente?.finalizado_em || finalizadaMaisRecente?.criadoEm || '') || 0;
+        if (finalizadaMaisRecente && (!dataRascunho || !dataFinalizacao || dataFinalizacao >= dataRascunho)) {
+          if (chavePedido) await AsyncStorage.removeItem(chavePedido);
+          await AsyncStorage.removeItem(STORAGE_KEY_LEGACY);
+          return null;
+        }
+        if (visitaValidaParaContinuar(visita)) return visita;
+        if (chavePedido) await AsyncStorage.removeItem(chavePedido);
+      }
+    } catch (erro) {
+      console.log('Erro lendo visita por chave:', erro);
+    }
+
+    try {
+      const salvoHistorico = await getItemSeguroStorage(STORAGE_VISITAS, 'histórico local');
+      const listaHistorico = salvoHistorico ? JSON.parse(salvoHistorico) : [];
+      const tecnicoAtual = tecnicoAtualLogado();
+
+      const visita = (Array.isArray(listaHistorico) ? listaHistorico : [])
+        .map(normalizarVisitaHistorico)
+        .find((item) => {
+          const mesmoPedido = String(item.numeroPedido || item.numero_pedido || item.dados?.numeroPedido || '') === pedidoAtualBusca;
+          const tecnicoItem = tecnicoDaVisitaLocal(item);
+          const mesmoTecnico = !tecnicoItem || !tecnicoAtual || tecnicoItem === tecnicoAtual;
+          return mesmoPedido && mesmoTecnico && visitaValidaParaContinuar(item);
+        });
+
+      if (visita) {
+        if (chavePedido) await AsyncStorage.setItem(chavePedido, JSON.stringify(prepararRegistroParaStorage(visita)));
+        return visita;
+      }
+    } catch (erro) {
+      console.log('Erro buscando visita no histórico local:', erro);
+    }
+
+    return null;
+  }
+
+  async function iniciarEntregaTecnicaPedido() {
+    const inicioCapturado = localizacaoInicio || await capturarLocalizacaoCampo();
+    setLocalizacaoInicio(inicioCapturado);
+    const pedidoAtualBusca = String(numeroPedido || dados?.numeroPedido || pedidoEncontrado?.numero_pedido || '').trim();
+    const visita = await buscarVisitaEmAndamentoDoPedido(pedidoAtualBusca);
+
+    if (visita) {
+      Alert.alert(
+        'Visita em andamento',
+        `Encontramos uma visita não finalizada para o pedido ${pedidoAtualBusca}. Deseja continuar?`,
+        [
+          {
+            text: 'Iniciar nova',
+            style: 'destructive',
+            onPress: async () => {
+              const chavePedido = getStorageKeyFromPedido(pedidoAtualBusca);
+              if (chavePedido) await AsyncStorage.removeItem(chavePedido);
+              await AsyncStorage.removeItem(STORAGE_KEY_LEGACY);
+              setEquipamentoAtual(null);
+              setEtapaVisita('resumo');
+              setEquipamentosSalvos({});
+              setAssinatura(null);
+              setTela('visita');
+            },
+          },
+          {
+            text: 'Continuar',
+            onPress: () => carregarVisitaSalvaNaTela(visita),
+          },
+        ]
+      );
+      return;
+    }
+
+    setEquipamentoAtual(null);
+    setEtapaVisita('resumo');
+    setTela('visita');
+  }
+
+  async function verificarVisitaLocalDoPedido(pedidoDigitado, pedido, equipamentosProntos) {
+    try {
+      const pedidoAtualBusca = String(pedidoDigitado || pedido?.numero_pedido || '').trim();
+
+      // A chave antiga/global causava alerta fantasma na tela de pedidos.
+      await AsyncStorage.removeItem(STORAGE_KEY_LEGACY);
+
+      setPedidoEncontrado(pedido);
+      setEquipamentos(equipamentosProntos || []);
+
+      const visita = await buscarVisitaEmAndamentoDoPedido(pedidoAtualBusca);
+
+      if (!visita) {
+        setTela('detalhePedido');
+        return;
+      }
+
+      Alert.alert(
+        'Visita em andamento',
+        `Encontramos uma visita não finalizada para o pedido ${pedidoAtualBusca}. Deseja continuar?`,
+        [
+          {
+            text: 'Iniciar nova',
+            style: 'destructive',
+            onPress: async () => {
+              const chavePedido = getStorageKeyFromPedido(pedidoAtualBusca);
+              if (chavePedido) await AsyncStorage.removeItem(chavePedido);
+              await AsyncStorage.removeItem(STORAGE_KEY_LEGACY);
+              setPedidoEncontrado(pedido);
+              setEquipamentos(equipamentosProntos || []);
+              setEquipamentoAtual(null);
+              setEtapaVisita('resumo');
+              setEquipamentosSalvos({});
+              setAssinatura(null);
+              setTela('detalhePedido');
+            },
+          },
+          {
+            text: 'Continuar',
+            onPress: () => carregarVisitaSalvaNaTela(visita),
+          },
+        ]
+      );
+    } catch (error) {
+      console.log('Erro ao verificar visita local do pedido:', error);
+      setTela('detalhePedido');
+    }
+  }
+
+  useEffect(() => {
+    if (tela === 'visita') {
+      salvarVisitaLocal();
+    }
+  }, [
+    numeroPedido,
+    pedidoEncontrado,
+    dados,
+    equipamentos,
+    equipamentoAtual,
+    etapaVisita,
+    equipamentosSalvos,
+    assinatura,
+    tela,
+  ]);
   const [listaClientes, setListaClientes] = useState([]);
   const [clienteSelecionado, setClienteSelecionado] = useState(null);
   const [numeroPedido, setNumeroPedido] = useState('');
   const [pedidoEncontrado, setPedidoEncontrado] = useState(null);
   const [buscandoPedido, setBuscandoPedido] = useState(false);
+
+  function resetarParaNovaVisita() {
+    ignorarSalvamentoLocalRef.current = true;
+
+    setTela('pedido');
+    setEtapaVisita('resumo');
+    setEquipamentoAtual(null);
+    setAssinaturaAberta(false);
+    setPedidoEncontrado(null);
+    setNumeroPedido('');
+    setDados({
+      numeroPedido: '',
+      cliente: '',
+      endereco: '',
+      cidade: '',
+      estado: '',
+      telefone: '',
+      emailCliente: '',
+      responsavel: '',
+      tecnico: usuario?.tecnico?.nome || usuario?.email || '',
+      data: new Date().toLocaleDateString('pt-BR'),
+      observacoes: '',
+    });
+    setEquipamentos([]);
+    setEquipamentosSalvos({});
+    setAssinatura(null);
+    setLocalizacaoInicio(null);
+
+    setTimeout(() => {
+      ignorarSalvamentoLocalRef.current = false;
+    }, 300);
+  }
+
+  useFocusEffect(
+    useCallback(() => {
+      if (route?.params?.telaInicial === 'pedido') {
+        resetarParaNovaVisita();
+      }
+
+      if (route?.params?.telaInicial === 'historico') {
+        setTela('historico');
+        setEtapaVisita('resumo');
+        setEquipamentoAtual(null);
+        setAssinaturaAberta(false);
+      }
+    }, [route?.params?.telaInicial])
+  );
   const clientesUnicos = listaClientes.filter(
-  (cliente, index, self) =>
-    index === self.findIndex(
-      (c) =>
-        String(c.nome || '').trim().toLowerCase() === String(cliente.nome || '').trim().toLowerCase() &&
-        String(c.cidade || '').trim().toLowerCase() === String(cliente.cidade || '').trim().toLowerCase() &&
-        String(c.telefone || '').trim() === String(cliente.telefone || '').trim()
-    )
-);
-
-  function toggleCategoria(categoria) {
-  setCategoriasAbertas((prev) => ({
-    ...prev,
-    [categoria]: !prev[categoria],
-  }));
-}
-
-  async function buscarUltimaVisitaCliente(nomeCliente) {
-  if (!nomeCliente) {
-    setUltimoAtendimentoCliente('Sem atendimento');
-    return;
-  }
-
-  const { data, error } = await supabase
-    .from('visitas')
-    .select('id, cliente, data_visita, data, numero_os')
-    .eq('cliente', nomeCliente)
-    .order('id', { ascending: false })
-    .limit(1);
-
-  if (error) {
-    console.log('ERRO ÚLTIMA VISITA CLIENTE:', error);
-    setUltimoAtendimentoCliente('Sem atendimento');
-    return;
-  }
-
-  const ultima = data?.[0];
-
-  if (!ultima) {
-    setUltimoAtendimentoCliente('Sem atendimento');
-    return;
-  }
-
-  setUltimoAtendimentoCliente(ultima.data_visita || ultima.data || 'Data não informada');
-}
-
-  function abrirMaps(pedido) {
-  const enderecoCompleto = `${pedido.endereco || ''}, ${pedido.cidade || ''} - ${pedido.estado || ''}`;
-
-  const url = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(enderecoCompleto)}`;
-
-  Linking.openURL(url);
-}
-
-  async function buscarPedido(pedidoSelecionado = null) {
-  const pedidoDigitado = String(
-    pedidoSelecionado || numeroPedido
-  ).trim();
-
-  if (!pedidoDigitado) {
-    Alert.alert('Atenção', 'Digite o número do pedido.');
-    return;
-  }
-
-  setBuscandoPedido(true);
-
-  setEquipamentos([]);
-  setEquipamentoAtual(0); 
-  
-  const { data: pedido, error: erroPedido } = await supabase
-    .from('pedidos')
-    .select('*')
-    .eq('numero_pedido', pedidoDigitado)
-    .maybeSingle();
-
-  //console.log('PEDIDO:', pedido);
-  //console.log('ERRO PEDIDO:', erroPedido);
-
-  if (erroPedido || !pedido) {
-    setBuscandoPedido(false);
-    Alert.alert('Pedido não encontrado', 'Verifique o número digitado.');
-    return;
-  }
-
-  setPedidoEncontrado(pedido);
-
-  buscarUltimaVisitaCliente(pedido.cliente);
-
-  setDados({
-    ...dados,
-    numeroPedido: pedido.numero_pedido || pedidoDigitado,
-    cliente: pedido.cliente || '',
-    endereco: pedido.endereco || '',
-    cidade: pedido.cidade || '',
-    estado: pedido.estado || '',
-    telefone: pedido.telefone || '',
-    emailCliente: pedido.email || '',
-    responsavel: pedido.responsavel || '',
-  });
-
-  console.time('BUSCA EQUIPAMENTOS');
-
-const { data: equipamentosPedido, error: erroEquipamentos } = await supabase
-  .from('equipamentos')
-  .select('*')
-  .eq('numero_pedido', pedidoDigitado)
-
-console.timeEnd('BUSCA EQUIPAMENTOS');
-
-  //console.log('EQUIPAMENTOS:', equipamentosPedido);
-  //console.log('ERRO EQUIPAMENTOS:', erroEquipamentos);
-
-  const equipamentosFiltrados = equipamentosPedido || [];
-
-  const { data: visitaAnterior, error: erroVisitaAnterior } = await supabase
-  .from('visitas')
-  .select('*')
-  .eq('numero_pedido', pedidoDigitado)
-  .not('equipamentos', 'is', null)
-  .order('created_at', { ascending: false })
-  .limit(1)
-  .maybeSingle();
-
-if (erroVisitaAnterior) {
-  console.log('ERRO AO BUSCAR VISITA ANTERIOR:', erroVisitaAnterior);
-}
-
-if (visitaAnterior?.equipamentos?.length > 0) {
-  console.log('VISITA ANTERIOR ENCONTRADA:', visitaAnterior);
-  
-  setPedidoEncontrado(pedido);
-  setEquipamentos(visitaAnterior.equipamentos);
-  setBuscandoPedido(false);
-  setTela('visita');
-  return;
-}
-
-  console.log('EQUIPAMENTOS FILTRADOS:', equipamentosFiltrados);
-  console.log('TOTAL FILTRADO:', equipamentosFiltrados.length);
-
-  const equipamentosFormatados = await Promise.all(
-  equipamentosFiltrados.map(async (eq) => {
-  if (!eq) return null;
-    const tag = String(
-      eq.tag ||
-      eq.TAG ||
-      eq.codigo_tag ||
-      eq.tag_equipamento ||
-      eq.nome ||
-      ''
-    ).trim();
-
-    const checklistOnline = tag
-      ? await carregarChecklistDoSupabase(tag)
-      : null;
-
-    const checklistLocal =
-      MODELOS_INICIAIS[tag] ||
-      MODELOS_INICIAIS[eq.nome] ||
-      [];
-
-    const itensBase =
-      checklistOnline && checklistOnline.length > 0
-        ? checklistOnline
-        : checklistLocal.map(criarItem);
-
-    return {
-      tipo: eq.nome || tag || '',
-      nome: eq.nome || '',
-      tag,
-      modelo: eq.modelo || '',
-      serie: eq.serie || '',
-      codigo: eq.codigo || '',
-      descritivo: eq.descritivo || '',
-      quantidade: eq.quantidade || 1,
-      foto: null,
-      itens: itensBase.map((item) => ({
-        categoria: item.categoria || 'GERAL',
-        texto: item.texto || item.item || '',
-        resposta: item.resposta || null,
-        obs: item.obs || item.observacao || '',
-        foto: null,
-        ativo: item.ativo !== false,
-      })),
-    };
-  })
-);
-
-  setEquipamentos(
-  equipamentosFormatados.filter(Boolean)
-);
-
-  setBuscandoPedido(false);
-
-  }
-
-async function carregarDashboard() {
-
-  try {
-
-    const { count: clientes } = await supabase
-      .from('clientes')
-      .select('*', { count: 'exact', head: true });
-
-    const { count: visitas } = await supabase
-      .from('visitas')
-      .select('*', { count: 'exact', head: true });
-
-    const { count: equipamentos } = await supabase
-  .from('equipamentos')
-  .select('*', { count: 'exact', head: true });
-
-const { data: visitasDados } = await supabase
-  .from('visitas')
-  .select('*')
-  .order('id', { ascending: false });
-
-const pendentes = visitasDados?.reduce(
-  (soma, visita) => soma + (visita.total_pendentes || 0),
-  0
-);
-
-const nao = visitasDados?.reduce(
-  (soma, visita) => soma + (visita.total_nao || 0),
-  0
-);
-
-setTotalPendentes(pendentes || 0);
-setTotalNao(nao || 0);
-setUltimoCliente(visitasDados?.[0]?.cliente || 'Nenhum');
-
-setTotalClientes(clientes || 0);
-setTotalVisitas(visitas || 0);
-setTotalEquipamentos(equipamentos || 0);
-
-  } catch (erro) {
-
-    console.log(erro);
-  }
-}
-async function buscarListaPedidos() {
-  const { data: pedidos, error } = await supabase
-    .from('pedidos')
-    .select('id, numero_pedido, cliente, status, cidade')
-    .order('id', { ascending: false });
-
-  if (error) {
-    console.log('ERRO LISTA PEDIDOS:', error);
-    return;
-  }
-
-  const { data: visitas, error: erroVisitas } = await supabase
-    .from('visitas')
-    .select('numero_pedido, status, finalizado, total_pendentes, total_equipamentos, created_at')
-    .order('created_at', { ascending: false });
-
-  if (erroVisitas) {
-    console.log('ERRO STATUS VISITAS:', erroVisitas);
-  }
-
-  const pedidosComStatus = (pedidos || []).map((pedido) => {
-    const visita = (visitas || []).find(
-      (v) => String(v.numero_pedido) === String(pedido.numero_pedido)
-    );
-
-    const visitaFinalizada =
-  visita?.finalizado === true ||
-  (
-    Number(visita?.total_pendentes || 0) === 0 &&
-    Number(visita?.total_equipamentos || 0) > 0
+    (cliente, index, self) =>
+      index === self.findIndex(
+        (c) =>
+          String(c.nome || '').trim().toLowerCase() === String(cliente.nome || '').trim().toLowerCase() &&
+          String(c.cidade || '').trim().toLowerCase() === String(cliente.cidade || '').trim().toLowerCase() &&
+          String(c.telefone || '').trim() === String(cliente.telefone || '').trim()
+      )
   );
 
-return {
-  ...pedido,
-  status: visitaFinalizada
-    ? 'finalizado'
-    : visita?.status || pedido.status || 'pendente',
-  finalizado: visitaFinalizada,
-};
-  });
+  function toggleCategoria(categoria) {
+    setCategoriasAbertas((prev) => ({
+      ...prev,
+      [categoria]: !prev[categoria],
+    }));
+  }
 
-  console.log('TOTAL PEDIDOS:', pedidosComStatus.length);
-  setListaPedidos(pedidosComStatus);
-}
+  async function buscarUltimaVisitaCliente(nomeCliente) {
+    if (!nomeCliente) {
+      setUltimoAtendimentoCliente('Sem atendimento');
+      return;
+    }
 
-useEffect(() => {
-  verificarLogin();
-  buscarListaPedidos();
-  //buscarClientes();
-  //carregarBanco();
-  carregarHistorico();
-  //carregarDashboard();
-}, []);
+    const { data, error } = await supabase
+      .from('visitas')
+      .select('id, cliente, data_visita, data, numero_os')
+      .eq('cliente', nomeCliente)
+      .eq('empresa', obterEmpresaAtual())
+      .order('id', { ascending: false })
+      .limit(1);
+
+    if (error) {
+      console.log('ERRO �aLTIMA VISITA CLIENTE:', error);
+      setUltimoAtendimentoCliente('Sem atendimento');
+      return;
+    }
+
+    const ultima = data?.[0];
+
+    if (!ultima) {
+      setUltimoAtendimentoCliente('Sem atendimento');
+      return;
+    }
+
+    setUltimoAtendimentoCliente(ultima.data_visita || ultima.data || 'Data não informada');
+  }
+
+  function abrirMaps(pedido) {
+    const enderecoCompleto = `${pedido.endereco || ''}, ${pedido.cidade || ''} - ${pedido.estado || ''}`;
+
+    const url = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(enderecoCompleto)}`;
+
+    Linking.openURL(url);
+  }
+
+  async function buscarPedido(pedidoSelecionado = null) {
+    try {
+      const pedidoDigitado = String(
+        pedidoSelecionado || numeroPedido
+      ).trim();
+
+      if (!pedidoDigitado) {
+        Alert.alert('Atenção', 'Digite o número do pedido.');
+        return;
+      }
+
+      setBuscandoPedido(true);
+      setEquipamentos([]);
+      setEquipamentoAtual(null);
+      setEtapaVisita('resumo');
+      setEquipamentosSalvos({});
+
+      let pedido = null;
+      let pedidoOffline = false;
+
+      try {
+        const { data, error: erroPedido } = await supabase
+          .from('pedidos')
+          .select('*')
+          .eq('numero_pedido', pedidoDigitado)
+          .eq('empresa', obterEmpresaAtual())
+          .maybeSingle();
+
+        if (!erroPedido && data) {
+          pedido = data;
+          await cachearPedidoLocal(data);
+        } else {
+          console.log('Pedido não encontrado online, tentando cache:', erroPedido);
+        }
+      } catch (erroPedidoOnline) {
+        console.log('Sem internet/erro ao buscar pedido online, tentando cache:', erroPedidoOnline);
+      }
+
+      if (!pedido) {
+        pedido = await buscarPedidoLocal(pedidoDigitado);
+        pedidoOffline = !!pedido;
+      }
+
+      if (!pedido) {
+        setBuscandoPedido(false);
+        Alert.alert(
+          'Pedido não encontrado',
+          'Não encontrei este pedido online nem no cache local. Abra este pedido pelo menos uma vez com internet antes de trabalhar offline.'
+        );
+        return;
+      }
+
+      setPedidoEncontrado(pedido);
+
+      setDados((atual) => ({
+        ...atual,
+        numeroPedido: pedido.numero_pedido || pedidoDigitado,
+        cliente: pedido.cliente || '',
+        endereco: pedido.endereco || '',
+        cidade: pedido.cidade || '',
+        estado: pedido.estado || '',
+        telefone: pedido.telefone || '',
+        emailCliente: pedido.email || '',
+        responsavel: pedido.responsavel || '',
+      }));
+
+      let equipamentosPedido = [];
+
+      if (!pedidoOffline) {
+        try {
+          const { data, error: erroEquipamentos } = await supabase
+            .from('equipamentos')
+            .select('*')
+            .eq('numero_pedido', pedidoDigitado)
+            .eq('empresa', obterEmpresaAtual());
+
+          if (erroEquipamentos) {
+            console.log('Erro ao buscar equipamentos online, tentando cache:', erroEquipamentos);
+          } else {
+            equipamentosPedido = data || [];
+          }
+        } catch (erroEquipamentosOnline) {
+          console.log('Sem internet/erro equipamentos online, tentando cache:', erroEquipamentosOnline);
+        }
+      }
+
+      if (!equipamentosPedido || equipamentosPedido.length === 0) {
+        equipamentosPedido = await buscarEquipamentosPedidoLocal(pedidoDigitado);
+        if (equipamentosPedido?.length > 0) {
+          pedidoOffline = true;
+        }
+      }
+
+      const equipamentosFormatados = await Promise.all(
+        (equipamentosPedido || []).map(async (eq) => {
+          const tag = String(
+            eq.tag ||
+            eq.TAG ||
+            eq.codigo_tag ||
+            eq.tag_equipamento ||
+            eq.nome ||
+            ''
+          ).trim();
+
+          const checklistOnline = eq.modelo_checklist_id
+            ? await carregarModeloGenericoAtribuido(eq.modelo_checklist_id)
+            : tag
+              ? await carregarChecklistDoSupabase(tag)
+              : null;
+
+          const itensBase =
+            checklistOnline && checklistOnline.length > 0
+              ? checklistOnline
+              : [];
+
+          return {
+            tipo: eq.nome || tag || '',
+            nome: eq.nome || '',
+            tag,
+            modelo: eq.modelo || '',
+            serie: eq.serie || '',
+            codigo: eq.codigo || '',
+            descritivo: eq.descritivo || '',
+            quantidade: eq.quantidade || 1,
+            foto: null,
+            itens: itensBase.map((item) => ({
+              categoria: item.categoria || 'GERAL',
+              texto: item.texto || item.item || '',
+              resposta: item.resposta || null,
+              obs: item.obs || item.observacao || '',
+              foto: null,
+              ativo: item.ativo !== false,
+              exige_foto: item.exige_foto === true,
+              exige_observacao: item.exige_observacao === true,
+            })),
+          };
+        })
+      );
+
+      const equipamentosProntos = equipamentosFormatados.filter(Boolean);
+
+      if (equipamentosProntos.length > 0) {
+        await cachearEquipamentosPedidoLocal(pedidoDigitado, equipamentosProntos);
+      }
+
+      setEquipamentos(equipamentosProntos);
+      setBuscandoPedido(false);
+      if (pedidoOffline) {
+        Alert.alert(
+          'Modo offline',
+          'Pedido carregado pelo cache local. Você pode preencher a visita normalmente; a sincronização ficará pendente até voltar internet.'
+        );
+      }
+      await verificarVisitaLocalDoPedido(pedidoDigitado, pedido, equipamentosProntos);
+
+      if (equipamentosProntos.length === 0) {
+        Alert.alert(
+          'Atenção',
+          `Pedido ${pedidoDigitado} encontrado, mas nenhum equipamento foi localizado.`
+        );
+      }
+    } catch (error) {
+      setBuscandoPedido(false);
+      Alert.alert(
+        'Erro buscar pedido',
+        error?.message || JSON.stringify(error)
+      );
+    }
+  }
+
+  async function carregarDashboard() {
+
+    try {
+
+      const { count: clientes } = await supabase
+        .from('clientes')
+        .select('*', { count: 'exact', head: true })
+        .eq('empresa', obterEmpresaAtual());
+
+      const { count: visitas } = await supabase
+        .from('visitas')
+        .select('*', { count: 'exact', head: true })
+        .eq('empresa', obterEmpresaAtual());
+
+      const { count: equipamentos } = await supabase
+        .from('equipamentos')
+        .select('*', { count: 'exact', head: true })
+        .eq('empresa', obterEmpresaAtual());
+
+      const { data: visitasDados } = await supabase
+        .from('visitas')
+        .select('*')
+        .eq('empresa', obterEmpresaAtual())
+        .order('id', { ascending: false });
+
+      const pendentes = visitasDados?.reduce(
+        (soma, visita) => soma + (visita.total_pendentes || 0),
+        0
+      );
+
+      const nao = visitasDados?.reduce(
+        (soma, visita) => soma + (visita.total_nao || 0),
+        0
+      );
+
+      setTotalPendentes(pendentes || 0);
+      setTotalNao(nao || 0);
+      setUltimoCliente(visitasDados?.[0]?.cliente || 'Nenhum');
+
+      setTotalClientes(clientes || 0);
+      setTotalVisitas(visitas || 0);
+      setTotalEquipamentos(equipamentos || 0);
+
+    } catch (erro) {
+
+      console.log(erro);
+    }
+  }
+  async function carregarVisitasLocaisEmAndamento() {
+    try {
+      const salvoHistorico = await getItemSeguroStorage(STORAGE_VISITAS, 'histórico local');
+      const listaHistorico = salvoHistorico ? JSON.parse(salvoHistorico) : [];
+
+      return (Array.isArray(listaHistorico) ? listaHistorico : [])
+        .map(normalizarVisitaHistorico)
+        .filter((visita) => visitaValidaParaContinuar(visita));
+    } catch (erro) {
+      console.log('Erro carregando visitas locais em andamento:', erro);
+      return [];
+    }
+  }
+
+  async function buscarListaPedidos() {
+    let pedidos = [];
+    let visitas = [];
+    let usandoCachePedidos = false;
+
+    try {
+      const { data, error } = await supabase
+        .from('pedidos')
+        .select('id, numero_pedido, cliente, status, cidade, tecnico_id')
+        .eq('empresa', obterEmpresaAtual())
+        .order('id', { ascending: false });
+
+      if (error) {
+        console.log('ERRO LISTA PEDIDOS ONLINE:', error);
+      } else {
+        pedidos = data || [];
+        await salvarJsonStorage(STORAGE_PEDIDOS_CACHE, pedidos);
+      }
+    } catch (erroPedidosOnline) {
+      console.log('Sem internet/erro ao listar pedidos online:', erroPedidosOnline);
+    }
+
+    if (!pedidos || pedidos.length === 0) {
+      pedidos = await lerJsonStorage(STORAGE_PEDIDOS_CACHE, []);
+      if (!usuarioPodeGerenciar()) {
+        pedidos = (Array.isArray(pedidos) ? pedidos : []).filter((pedido) => Number(pedido.tecnico_id) === Number(obterTecnicoAtualId()));
+      }
+      usandoCachePedidos = Array.isArray(pedidos) && pedidos.length > 0;
+    }
+
+    try {
+      const { data, error: erroVisitas } = await supabase
+        .from('visitas')
+        .select('numero_pedido, status, finalizado, total_pendentes, total_equipamentos, created_at')
+        .eq('empresa', obterEmpresaAtual())
+        .order('created_at', { ascending: false });
+
+      if (erroVisitas) {
+        console.log('ERRO STATUS VISITAS:', erroVisitas);
+      } else {
+        visitas = data || [];
+      }
+    } catch (erroVisitasOnline) {
+      console.log('Sem internet/erro status visitas online:', erroVisitasOnline);
+    }
+
+    const visitasLocais = await carregarVisitasLocaisEmAndamento();
+
+    const pedidosComStatus = (pedidos || []).map((pedido) => {
+      const visitaLocal = visitasLocais.find(
+        (v) => String(v.numero_pedido || v.numeroPedido || v.dados?.numeroPedido || '') === String(pedido.numero_pedido)
+      );
+
+      const visitaSupabase = (visitas || []).find(
+        (v) => String(v.numero_pedido) === String(pedido.numero_pedido)
+      );
+
+      const visita = visitaLocal || visitaSupabase;
+
+      const visitaFinalizada =
+        visita?.finalizado === true ||
+        visita?.status === 'finalizado' ||
+        (
+          Number(visita?.total_pendentes || 0) === 0 &&
+          Number(visita?.total_equipamentos || 0) > 0 &&
+          !visitaLocal
+        );
+
+      return {
+        ...pedido,
+        status: visitaFinalizada
+          ? 'finalizado'
+          : visitaLocal
+            ? 'em andamento'
+            : visita?.status || pedido.status || (usandoCachePedidos ? 'cache offline' : 'pendente'),
+        finalizado: visitaFinalizada,
+        offline_cache: usandoCachePedidos,
+      };
+    });
+
+    console.log('TOTAL PEDIDOS:', pedidosComStatus.length);
+    setListaPedidos(pedidosComStatus);
+  }
+
+  useEffect(() => {
+    verificarLogin();
+    buscarListaPedidos();
+    //buscarClientes();
+    //carregarBanco();
+    carregarHistorico();
+    processarFilaSincronizacao();
+    //carregarDashboard();
+  }, []);
 
   async function buscarClientes() {
-  const { data, error } = await supabase
-    .from('clientes')
-    .select('*')
-    .order('nome', { ascending: true });
+    const { data, error } = await supabase
+      .from('clientes')
+      .select('*')
+      .eq('empresa', obterEmpresaAtual())
+      .order('nome', { ascending: true });
 
-  console.log('CLIENTES BUSCADOS:', data);
-  console.log('ERRO CLIENTES:', error);
+    console.log('CLIENTES BUSCADOS:', data);
+    console.log('ERRO CLIENTES:', error);
 
-  if (!error) {
-    setListaClientes(data || []);
+    if (!error) {
+      setListaClientes(data || []);
+    }
   }
-}
 
   async function carregarBanco() {
     try {
@@ -1195,23 +1517,118 @@ useEffect(() => {
         setEquipamentos([criarEquipamento(banco, 1, primeiroTipo)]);
       }
     } catch (erro) {
-      Alert.alert('Erro', 'Não foi possível carregar o Banco de Checklists BRS.');
+      Alert.alert('Erro', 'Não foi possível carregar o Banco de Checklists FieldCheck.');
     }
   }
 
-  async function carregarHistorico() {
-  const { data, error } = await supabase
-    .from('visitas')
-    .select('*')
-    .order('created_at', { ascending: false });
-
-  if (error) {
-    console.log('ERRO AO CARREGAR HISTÓRICO:', error);
-    return;
+  function chaveVisita(visita = {}) {
+    return String(
+      visita.numero_os ||
+      visita.numero_entrega ||
+      visita.numero_pedido ||
+      visita.numeroPedido ||
+      visita.id ||
+      ''
+    );
   }
 
-  setHistorico(data || []);
-}
+  function normalizarVisitaHistorico(visita = {}) {
+    const resumoSeguro = visita.resumo || {
+      ok: visita.total_ok || 0,
+      nao: visita.total_nao || 0,
+      pendentes: visita.total_pendentes || 0,
+    };
+
+    const dadosSeguro = visita.dados || {
+      numeroPedido: visita.numero_pedido || visita.numeroPedido || '',
+      cliente: visita.cliente || '',
+      endereco: visita.endereco || '',
+      cidade: visita.cidade || '',
+      estado: visita.estado || '',
+      telefone: visita.telefone || visita.contato || '',
+      emailCliente: visita.emailCliente || visita.email_cliente || '',
+      responsavel: visita.responsavel || '',
+      tecnico: visita.tecnico || '',
+      data: visita.data_visita || visita.data || '',
+      observacoes: visita.observacoes || '',
+    };
+
+    const equipamentosSeguros = Array.isArray(visita.equipamentos)
+      ? visita.equipamentos.map((eq) => ({
+        ...eq,
+        itens: Array.isArray(eq.itens) ? eq.itens : [],
+      }))
+      : [];
+
+    return {
+      ...visita,
+      dados: dadosSeguro,
+      equipamentos: equipamentosSeguros,
+      resumo: resumoSeguro,
+      total_ok: visita.total_ok ?? resumoSeguro.ok ?? 0,
+      total_nao: visita.total_nao ?? resumoSeguro.nao ?? 0,
+      total_pendentes: visita.total_pendentes ?? resumoSeguro.pendentes ?? 0,
+      total_equipamentos: visita.total_equipamentos ?? equipamentosSeguros.length ?? 0,
+      cliente: visita.cliente || dadosSeguro.cliente || 'Cliente não informado',
+      cidade: visita.cidade || dadosSeguro.cidade || '',
+      tecnico: visita.tecnico || dadosSeguro.tecnico || '',
+      data_visita: visita.data_visita || dadosSeguro.data || visita.data || '',
+      finalizado: visita.finalizado === true || visita.status === 'finalizado' || (Number(visita.total_pendentes || resumoSeguro.pendentes || 0) === 0 && Number(visita.total_equipamentos || equipamentosSeguros.length || 0) > 0),
+      status: visita.status || (visita.finalizado ? 'finalizado' : 'em andamento'),
+    };
+  }
+
+  async function carregarHistorico() {
+    try {
+      const salvoLocal = await getItemSeguroStorage(STORAGE_VISITAS, 'histórico local');
+      const historicoLocal = salvoLocal ? JSON.parse(salvoLocal) : [];
+
+      const { data, error } = await supabase
+        .from('visitas')
+        .select('*')
+        .eq('empresa', obterEmpresaAtual())
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        console.log('ERRO AO CARREGAR HIST�RICO:', error);
+        setHistorico((Array.isArray(historicoLocal) ? historicoLocal : []).map(normalizarVisitaHistorico));
+        return;
+      }
+
+      const mapaLocal = new Map(
+        (Array.isArray(historicoLocal) ? historicoLocal : [])
+          .map(normalizarVisitaHistorico)
+          .map((visita) => [chaveVisita(visita), visita])
+      );
+
+      const listaSupabase = Array.isArray(data) ? data.map(normalizarVisitaHistorico) : [];
+
+      const listaMesclada = listaSupabase.map((visita) => {
+        const local = mapaLocal.get(chaveVisita(visita));
+        if (local && Array.isArray(local.equipamentos) && local.equipamentos.length > 0) {
+          return normalizarVisitaHistorico({
+            ...visita,
+            ...local,
+            id: visita.id || local.id,
+            numero_os: visita.numero_os || local.numero_os,
+            numero_pedido: visita.numero_pedido || local.numeroPedido || local.numero_pedido,
+          });
+        }
+
+        return visita;
+      });
+
+      (Array.isArray(historicoLocal) ? historicoLocal : []).map(normalizarVisitaHistorico).forEach((local) => {
+        const existe = listaMesclada.some((visita) => chaveVisita(visita) === chaveVisita(local));
+        if (!existe) listaMesclada.push(local);
+      });
+
+      setHistorico(listaMesclada);
+    } catch (erro) {
+      console.log('Erro ao carregar histórico:', erro);
+      setHistorico([]);
+    }
+  }
 
   async function salvarModelos(novosModelos) {
     try {
@@ -1223,83 +1640,97 @@ useEffect(() => {
   }
 
   const equipamento =
-  equipamentos[equipamentoAtual] ||
-  equipamentos[0] ||
-  criarEquipamento(MODELOS_INICIAIS, 1);
+    equipamentoAtual !== null
+      ? equipamentos[equipamentoAtual]
+      : null;
 
   const resumo = useMemo(() => {
-  const todos = equipamentos.flatMap((eq) =>
-    (eq.itens || []).filter((i) => i.ativo !== false)
-  );
+    const todos = equipamentos.flatMap((eq) =>
+      (eq.itens || []).filter((i) => i.ativo !== false)
+    );
 
-  return {
-    total: todos.length,
-    ok: todos.filter((i) => i.resposta === 'OK' || i.ok === true).length,
-    nao: todos.filter((i) => i.resposta === 'NAO' || i.nao === true).length,
-    pendentes: todos.filter(
-      (i) =>
-        !i.resposta &&
-        i.ok !== true &&
-        i.nao !== true
-    ).length,
-  };
-}, [equipamentos]);
+    return {
+      total: todos.length,
+      ok: todos.filter((i) => i.resposta === 'OK' || i.ok === true).length,
+      nao: todos.filter((i) => i.resposta === 'NAO' || i.nao === true).length,
+      pendentes: todos.filter(
+        (i) =>
+          !i.resposta &&
+          i.ok !== true &&
+          i.nao !== true
+      ).length,
+    };
+  }, [equipamentos]);
+
+  const visitasDoPedido = historico.filter(
+    (v) =>
+      String(v.numero_pedido || v.numeroPedido || v.dados?.numeroPedido || '') ===
+      String(numeroPedido || pedidoEncontrado?.numero_pedido || '')
+  ).length;
+
+  const progressoVisita = useMemo(() => {
+    const totalEquipamentos = equipamentos.length || 0;
+
+    const equipamentosSalvosQtd = equipamentos.filter((eq, index) => {
+      const status = statusEquipamento(eq);
+      return equipamentosSalvos[index] === true || status === 'concluido';
+    }).length;
+
+    const percentual = totalEquipamentos > 0
+      ? Math.round((equipamentosSalvosQtd / totalEquipamentos) * 100)
+      : 0;
+
+    return {
+      totalEquipamentos,
+      equipamentosSalvosQtd,
+      percentual,
+    };
+  }, [equipamentos, equipamentosSalvos]);
 
   const indicadoresVisitaAtual = {
-  visitas: pedidoEncontrado ? 1 : 0,
-  equipamentos: equipamentos.length || 0,
-  pendentes: resumo.pendentes || 0,
-  nao: resumo.nao || 0,
-};
+    visitas: visitasDoPedido,
+    equipamentos: equipamentos.length || 0,
+    pendentes: resumo.pendentes || 0,
+    nao: resumo.nao || 0,
+  };
 
-  async function finalizarChecklist() {
-  try {
-    const numeroPedido =
-      dados.numeroPedido ||
-      dados.numero_pedido ||
-      dados.pedido ||
-      '';
-
-    const { error } = await supabase
-      .from('visitas')
-      .insert([
-        {
-          cliente: dados.cliente || '',
-          tecnico: dados.tecnico || '',
-          cidade: dados.cidade || '',
-          data_visita: new Date().toLocaleDateString('pt-BR'),
-          observacoes: dados.observacoes || '',
-          total_ok: resumo.ok,
-          total_nao: resumo.nao,
-          total_pendentes: resumo.pendentes,
-          total_equipamentos: equipamentos.length,
-          numero_os: numeroPedido,
-          numero_pedido: numeroPedido,
-          numero_entrega: `BRS-${new Date().getFullYear()}-${Date.now()}`,
-          equipamentos: equipamentos,
-        },
-      ]);
-
-    if (error) {
-  console.log('ERRO AO SALVAR VISITA:', error);
-
-  Alert.alert(
-    'Erro ao salvar visita',
-    error.message || JSON.stringify(error)
-  );
-
-  return;
-}
-
-    Alert.alert(
-      'Checklist finalizado',
-      'Visita salva com sucesso no Supabase.'
+  function finalizarChecklist() {
+    const itensObrigatoriosPendentes = equipamentos.flatMap((eq) =>
+      (eq.itens || []).filter((item) =>
+        item.ativo !== false && (
+          !item.resposta ||
+          (item.exige_foto === true && !item.foto) ||
+          (item.exige_observacao === true && !String(item.obs || '').trim())
+        )
+      )
     );
-  } catch (error) {
-    console.log('ERRO FINALIZAR CHECKLIST:', error);
-    Alert.alert('Erro', 'Erro ao finalizar checklist.');
+    if (itensObrigatoriosPendentes.length > 0) {
+      Alert.alert(
+        'Checklist incompleto',
+        'Responda todos os itens obrigatórios e inclua as fotos ou observações exigidas pela empresa.'
+      );
+      return;
+    }
+    Alert.alert(
+      'Finalizar checklist',
+      'Confirma a finalizacao desta visita? Depois disso, o tecnico podera apenas consultar e reenviar o relatorio.',
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Finalizar',
+          onPress: async () => {
+            try {
+              await salvarHistorico();
+              Alert.alert('Checklist finalizado', 'Visita salva com sucesso.');
+            } catch (error) {
+              console.log('ERRO FINALIZAR CHECKLIST:', error);
+              Alert.alert('Erro', 'Erro ao finalizar checklist.');
+            }
+          },
+        },
+      ]
+    );
   }
-}
 
   function atualizarCampo(campo, valor) {
     setDados((atual) => ({ ...atual, [campo]: valor }));
@@ -1313,29 +1744,29 @@ useEffect(() => {
     });
   }
 
-function trocarTipoEquipamento(tipo) {
-  Alert.alert('Carregar checklist', `Deseja carregar o checklist padrão de ${tipo}?`, [
-    { text: 'Cancelar', style: 'cancel' },
-    {
-      text: 'Carregar',
-      onPress: async () => {
-        const checklistOnline = await carregarChecklistDoSupabase(tipo);
-        const checklistFinal = checklistOnline || criarChecklist(modelos, tipo);
+  function trocarTipoEquipamento(tipo) {
+    Alert.alert('Carregar checklist', `Deseja carregar o checklist padrão de ${tipo}?`, [
+      { text: 'Cancelar', style: 'cancel' },
+      {
+        text: 'Carregar',
+        onPress: async () => {
+          const checklistOnline = await carregarChecklistDoSupabase(tipo);
+          const checklistFinal = checklistOnline || criarChecklist(modelos, tipo);
 
-        setEquipamentos((atual) => {
-          const novo = [...atual];
-          novo[equipamentoAtual] = {
-            ...novo[equipamentoAtual],
-            tipo,
-            nome: tipo,
-            itens: checklistFinal,
-          };
-          return novo;
-        });
+          setEquipamentos((atual) => {
+            const novo = [...atual];
+            novo[equipamentoAtual] = {
+              ...novo[equipamentoAtual],
+              tipo,
+              nome: tipo,
+              itens: checklistFinal,
+            };
+            return novo;
+          });
+        },
       },
-    },
-  ]);
-}   
+    ]);
+  }
   function adicionarEquipamento() {
     const primeiroTipo = Object.keys(modelos)[0] || 'Elevador de Sementes';
     setEquipamentos((atual) => [...atual, criarEquipamento(modelos, atual.length + 1, primeiroTipo)]);
@@ -1344,11 +1775,45 @@ function trocarTipoEquipamento(tipo) {
 
   function removerEquipamento() {
     if (equipamentos.length === 1) {
-      Alert.alert('Atenção', 'É necessário manter pelo menos um equipamento.');
+      Alert.alert('Atenção', '�0 necessário manter pelo menos um equipamento.');
       return;
     }
     setEquipamentos((atual) => atual.filter((_, i) => i !== equipamentoAtual));
-    setEquipamentoAtual(0);
+    setEquipamentoAtual(null);
+    setEtapaVisita('resumo');
+  }
+
+  async function salvarEquipamentoAtual() {
+    if (equipamentoAtual === null) return;
+
+    const novosEquipamentosSalvos = {
+      ...equipamentosSalvos,
+      [equipamentoAtual]: true,
+    };
+
+    setEquipamentosSalvos(novosEquipamentosSalvos);
+
+    await salvarVisitaLocal({
+      sincronizarSupabase: true,
+      equipamentosOverride: equipamentos,
+      equipamentosSalvosOverride: novosEquipamentosSalvos,
+      etapaOverride: 'resumo',
+      equipamentoAtualOverride: null,
+      finalizadoOverride: false,
+    });
+
+    Alert.alert(
+      'Equipamento salvo',
+      'Checklist deste equipamento foi salvo no celular e sincronizado como visita em andamento.'
+    );
+
+    setEquipamentoAtual(null);
+    setEtapaVisita('resumo');
+  }
+
+  function voltarParaResumoVisita() {
+    setEquipamentoAtual(null);
+    setEtapaVisita('resumo');
   }
 
   function alterarItemVisita(index, alteracao) {
@@ -1405,15 +1870,25 @@ function trocarTipoEquipamento(tipo) {
       {
         text: 'Câmera',
         onPress: async () => {
-          const resultado = await ImagePicker.launchCameraAsync({ quality: 0.7 });
-          if (!resultado.canceled) atualizarEquipamento('foto', resultado.assets[0].uri);
+          const resultado = await ImagePicker.launchCameraAsync({
+            quality: 0.45,
+          });
+
+          if (!resultado.canceled) {
+            atualizarEquipamento('foto', resultado.assets[0].uri);
+          }
         },
       },
       {
         text: 'Galeria',
         onPress: async () => {
-          const resultado = await ImagePicker.launchImageLibraryAsync({ quality: 0.7 });
-          if (!resultado.canceled) atualizarEquipamento('foto', resultado.assets[0].uri);
+          const resultado = await ImagePicker.launchImageLibraryAsync({
+            quality: 0.45,
+          });
+
+          if (!resultado.canceled) {
+            atualizarEquipamento('foto', resultado.assets[0].uri);
+          }
         },
       },
       { text: 'Cancelar', style: 'cancel' },
@@ -1431,15 +1906,29 @@ function trocarTipoEquipamento(tipo) {
       {
         text: 'Câmera',
         onPress: async () => {
-          const resultado = await ImagePicker.launchCameraAsync({ quality: 0.7 });
-          if (!resultado.canceled) alterarItemVisita(index, { foto: resultado.assets[0].uri });
+          const resultado = await ImagePicker.launchCameraAsync({
+            quality: 0.45,
+          });
+
+          if (!resultado.canceled) {
+            alterarItemVisita(index, {
+              foto: resultado.assets[0].uri,
+            });
+          }
         },
       },
       {
         text: 'Galeria',
         onPress: async () => {
-          const resultado = await ImagePicker.launchImageLibraryAsync({ quality: 0.7 });
-          if (!resultado.canceled) alterarItemVisita(index, { foto: resultado.assets[0].uri });
+          const resultado = await ImagePicker.launchImageLibraryAsync({
+            quality: 0.45,
+          });
+
+          if (!resultado.canceled) {
+            alterarItemVisita(index, {
+              foto: resultado.assets[0].uri,
+            });
+          }
         },
       },
       { text: 'Cancelar', style: 'cancel' },
@@ -1495,7 +1984,7 @@ function trocarTipoEquipamento(tipo) {
 
   function salvarEdicaoBanco() {
     const texto = textoEditandoBanco.trim();
-    if (!texto) return;    const lista = [...modelos[tipoBanco]];
+    if (!texto) return; const lista = [...modelos[tipoBanco]];
     lista[editandoBancoIndex] = texto;
     salvarModelos({ ...modelos, [tipoBanco]: lista });
     setEditandoBancoIndex(null);
@@ -1504,10 +1993,10 @@ function trocarTipoEquipamento(tipo) {
 
   function removerTipoBanco() {
     if (Object.keys(modelos).length === 1) {
-      Alert.alert('Atenção', 'É necessário manter pelo menos um tipo de equipamento.');
+      Alert.alert('Atenção', '�0 necessário manter pelo menos um tipo de equipamento.');
       return;
     }
-    Alert.alert('Remover tipo', `Deseja remover ${tipoBanco} do Banco de Checklists BRS?`, [
+    Alert.alert('Remover tipo', `Deseja remover ${tipoBanco} do Banco de Checklists FieldCheck?`, [
       { text: 'Cancelar', style: 'cancel' },
       {
         text: 'Remover',
@@ -1524,7 +2013,7 @@ function trocarTipoEquipamento(tipo) {
   }
 
   function restaurarBancoInicial() {
-    Alert.alert('Restaurar banco inicial', 'Isso vai voltar os modelos para o padrão inicial da BRS. Deseja continuar?', [
+    Alert.alert('Restaurar banco inicial', 'Isso vai voltar os modelos para o padrão inicial do FieldCheck. Deseja continuar?', [
       { text: 'Cancelar', style: 'cancel' },
       {
         text: 'Restaurar',
@@ -1536,2128 +2025,686 @@ function trocarTipoEquipamento(tipo) {
     ]);
   }
 
- async function salvarHistorico() {
-  const registro = {
-    id: Date.now(),
-    cliente: dados.cliente,
-    emailCliente: dados.emailCliente,
-    propriedade: dados.propriedade,
-    cidade: dados.cidade,
-    tecnico: dados.tecnico,
-    data: dados.data,
-    equipamentos: equipamentos,
-    resumo,
-    dados,
-    numero_pedido: numeroPedido,
-    pedidoEncontrado,
-    status: resumo.pendentes === 0 ? 'finalizado' : 'em_andamento',
-   finalizado: resumo.pendentes === 0,
-  };
+  async function salvarHistorico() {
+    const localizacaoEnvio = await capturarLocalizacaoCampo();
+    const localizacaoInicioFinal = localizacaoInicio || localizacaoEnvio;
+    const equipamentosCompletos = equipamentos.map((eq) => ({
+      ...eq,
+      itens: (eq.itens || []).map((item) => ({
+        ...item,
+      })),
+    }));
 
-  const salvo = await AsyncStorage.getItem(STORAGE_VISITAS);
-  const listaAtual = salvo ? JSON.parse(salvo) : [];
-  const novaLista = [registro, ...listaAtual];
+    const numeroOsFinal = `FC-${new Date().getFullYear()}-${Date.now()}`;
 
-  await AsyncStorage.setItem(STORAGE_VISITAS, JSON.stringify(novaLista));
-  setHistorico(novaLista);
+    const registro = {
+      id: Date.now(),
+      numero_os: numeroOsFinal,
+      numero_pedido: numeroPedido || null,
 
-   await supabase.from('visitas').insert([
-  {
-    numero_os: `BRS-${new Date().getFullYear()}-${Date.now()}`,
-    cliente: dados.cliente,
-    tecnico: dados.tecnico,
-    cidade: dados.cidade,
-    data_visita: dados.data,
-    observacoes: dados.observacoes,
-    total_ok: resumo.ok,
-    total_nao: resumo.nao,
-    total_pendentes: resumo.pendentes,
-    total_equipamentos: equipamentos.length,
-    status: 'finalizado',
-    finalizado: true,
-  },
-]);
-try {
-console.log('Dados enviados para Supabase');
-} catch (erro) {
-  console.log('Erro Supabase:', erro);
-}
-}
-  async function limparHistorico() {
-    Alert.alert('Limpar histórico', 'Deseja apagar todo o histórico salvo neste celular?', [
-      { text: 'Cancelar', style: 'cancel' },
-      {
-        text: 'Apagar',
-        style: 'destructive',
-        onPress: async () => {
-          await AsyncStorage.removeItem(STORAGE_VISITAS);
-          setHistorico([]);
-        },
+      numeroPedido,
+      pedidoEncontrado,
+
+      dados: {
+        ...dados,
       },
-    ]);
+
+      cliente: dados.cliente,
+      emailCliente: dados.emailCliente,
+      propriedade: dados.propriedade,
+      cidade: dados.cidade,
+      estado: dados.estado,
+      endereco: dados.endereco,
+      telefone: dados.telefone || dados.contato,
+      contato: dados.contato,
+      responsavel: dados.responsavel,
+      tecnico: dados.tecnico,
+      data: dados.data,
+      observacoes: dados.observacoes,
+
+      equipamentos: equipamentosCompletos,
+
+      assinatura,
+      tecnico_id: obterTecnicoAtualId(),
+      localizacao_inicio: localizacaoInicioFinal,
+      localizacao_envio: localizacaoEnvio,
+      inicio_em: localizacaoInicioFinal?.capturado_em || null,
+      finalizado_em: new Date().toISOString(),
+      resumo,
+      total_ok: resumo.ok,
+      total_nao: resumo.nao,
+      total_pendentes: resumo.pendentes,
+      total_equipamentos: equipamentos.length,
+      finalizado: true,
+      status: 'finalizado',
+      sincronizado: false,
+      criadoEm: new Date().toISOString(),
+    };
+
+    const salvo = await getItemSeguroStorage(STORAGE_VISITAS, 'histórico local');
+    const listaAtual = salvo ? JSON.parse(salvo) : [];
+
+    const novaLista = [
+      registro,
+      ...listaAtual.filter((item) => {
+        const mesmoPedido =
+          String(item.numeroPedido || item.numero_pedido || '') === String(numeroPedido || '');
+
+        return !mesmoPedido;
+      }),
+    ];
+
+    const novaListaSegura = prepararListaHistoricoParaStorage(novaLista);
+    await AsyncStorage.setItem(STORAGE_VISITAS, JSON.stringify(novaListaSegura));
+    setHistorico(novaListaSegura.map(normalizarVisitaHistorico));
+
+    const chaveVisitaFinalizada = getStorageKeyFromPedido(numeroPedido);
+    if (chaveVisitaFinalizada) await AsyncStorage.removeItem(chaveVisitaFinalizada);
+    await AsyncStorage.removeItem(STORAGE_KEY_LEGACY);
+
+    try {
+      const midiasRemotas = await enviarMidiasVisita({
+        equipamentos: equipamentosCompletos,
+        assinatura,
+        empresa: obterEmpresaAtual(),
+        numeroOs: numeroOsFinal,
+      });
+
+      if (dados.cliente) {
+        await supabase.from('clientes').insert([
+          {
+            nome: dados.cliente,
+            email: dados.emailCliente,
+            cidade: dados.cidade,
+            propriedade: dados.propriedade,
+            telefone: dados.telefone || dados.contato,
+            empresa: obterEmpresaAtual(),
+          },
+        ]);
+      }
+
+      const visitaBasica = {
+        numero_os: numeroOsFinal,
+        numero_pedido: numeroPedido || null,
+        cliente: dados.cliente,
+        tecnico: dados.tecnico || usuario?.tecnico?.nome || usuario?.email || '',
+        cidade: dados.cidade,
+        data_visita: dados.data,
+        observacoes: dados.observacoes,
+        total_ok: resumo.ok,
+        total_nao: resumo.nao,
+        total_pendentes: resumo.pendentes,
+        total_equipamentos: equipamentos.length,
+        finalizado: true,
+        status: 'enviado',
+        empresa: obterEmpresaAtual(),
+        tecnico_id: obterTecnicoAtualId(),
+        pedido_id: pedidoEncontrado?.id || null,
+        criado_por: usuario?.id || null,
+        enviado_em: new Date().toISOString(),
+        inicio_em: registro.inicio_em,
+        finalizado_em: registro.finalizado_em,
+        localizacao_inicio: localizacaoInicioFinal,
+        localizacao_envio: localizacaoEnvio,
+        dados: registro.dados,
+        equipamentos: midiasRemotas.equipamentos,
+        assinatura: null,
+        assinatura_path: midiasRemotas.assinaturaPath,
+        resumo,
+      };
+
+      const { data: visitaInserida, error: erroInserirVisita } = await supabase
+        .from('visitas')
+        .insert([visitaBasica])
+        .select('id')
+        .single();
+
+      if (erroInserirVisita) {
+        console.log('ERRO AO SALVAR VISITA BÁSICA:', erroInserirVisita);
+        await adicionarNaFilaSincronizacao(registro);
+      }
+
+      console.log('Dados enviados para Supabase');
+    } catch (erro) {
+      console.log('Erro Supabase:', erro);
+      await adicionarNaFilaSincronizacao(registro);
+    }
   }
 
-function continuarVisita(visita) {
-  console.log('CONTINUANDO VISITA:', visita);
-
-  setDados(visita.dados || {});
-  setEquipamentos(visita.equipamentos || []);
-  setPedidoEncontrado(visita.pedidoEncontrado || null);
-  setNumeroPedido(String(visita.numero_pedido || ''));
-
-  setTela('visita');
-}
-
-async function gerarNumeroEntrega() {
-  const anoAtual = new Date().getFullYear();
-
-  const { data, error } = await supabase
-    .from('controle_entregas')
-    .select('*')
-    .eq('ano', anoAtual)
-    .single();
-
-  if (error) {
-    console.log(error);
-    return `BRS-${anoAtual}-0001`;
-  }
-
-  const proximoNumero = data.ultimo_numero + 1;
-
-  await supabase
-    .from('controle_entregas')
-    .update({
-      ultimo_numero: proximoNumero,
-    })
-    .eq('id', data.id);
-
-  const numeroFormatado = String(proximoNumero).padStart(4, '0');
-
-  return `BRS-${anoAtual}-${numeroFormatado}`;
-}
-
-async function fazerLogin() {
-  if (!emailLogin || !senhaLogin) {
-    Alert.alert('Atenção', 'Preencha e-mail e senha.');
-    return;
-  }
-
-  const { data, error } = await supabase.auth.signInWithPassword({
-  email: emailLogin.trim().toLowerCase(),
-  password: senhaLogin.trim(),
-});
-
-  if (error) {
-    Alert.alert('Erro', error.message);
-    return;
-  }
-
-  const { data: tecnico, error: erroTecnico } = await supabase
-  .from('tecnicos')
-  .select('*')
-  .eq('email', emailLogin)
-  .eq('ativo', true)
-  .single();
-
-if (erroTecnico || !tecnico) {
-  Alert.alert('Atenção', 'Técnico não cadastrado ou inativo.');
-  return;
-}
-
-setUsuario({
-  ...data.user,
-  tecnico,
-});
-
-setTela('pedido');
-}   
-
-async function verificarLogin() {
-  const { data } = await supabase.auth.getSession();
-
-  if (data?.session?.user) {
-    setUsuario(data.session.user);
-  }
-}   
-
-async function sairSistema() {
-  await supabase.auth.signOut();
-  setUsuario(null);
-}
-
-  async function montarHtmlPdf(logoBase64, equipamentosPdf = equipamentos) {
-    const equipamentosHtml = equipamentosPdf.map((eq, eqIndex) => {
-        const fotoEquipamentoHtml = eq.fotoBase64
-  ? `
-    <div class="fotoEquipamentoBox">
-      <h3>Foto do equipamento</h3>
-      <img
-        class="fotoEquipamentoPdf"
-        src="data:image/jpeg;base64,${eq.fotoBase64}"
-      />
-    </div>
-  `
-  : `
-  <div class="semFotoBox">
-    <p class="semFoto">
-      Nenhuma foto registrada para este equipamento.
-    </p>
-  </div>
-`;  
-      const itemsHtml = (eq.itens || [])
-  .filter((item) => item.ativo !== false)
-  .map(
-    (item) => `
-      <tr>
-        <td>${item.texto}</td>
-        <td class="centro ok">${item.resposta === 'OK' ? 'OK' : ''}</td>
-        <td class="centro nao">${item.resposta === 'NAO' ? 'NÃO' : ''}</td>
-        <td>${item.obs || ''}</td>
-      </tr>
-    `
-  )
-  .join('');
-
-const fotosItens = (eq.itens || [])
-  .filter(
-    (item) =>
-      item.ativo !== false &&
-      item.fotoBase64 &&
-      item.fotoBase64.trim() !== ''
-  )
-  .map(
-    (item) => `
-      <div class="foto-item">
-        <p><strong>${item.texto}</strong></p>
-
-        <img
-          class="foto"
-          src="data:image/jpeg;base64,${item.fotoBase64}"
-        />
-      </div>
-    `
-  )
-  .join('');
-
-      return `
-        <section class="equipamento">
-          <h2>Equipamento ${eqIndex + 1}: ${eq.nome}</h2>
-          <p><strong>Tipo:</strong> ${eq.tipo}</p>
-          <p><strong>Descrição:</strong> ${eq.descricao || ''}</p>
-          <p><strong>Modelo:</strong> ${eq.modelo || ''}</p>
-          <p><strong>Série:</strong> ${eq.serie || ''}</p>
-          ${fotoEquipamentoHtml}
-
-          <h3>Checklist deste equipamento</h3>
-
-          <table>
-  <thead>
-    <tr>
-      <th>Item verificado</th>
-      <th>OK</th>
-      <th>Não</th>
-      <th>Observação</th>
-    </tr>
-  </thead>
-
-  <tbody>
-    ${itemsHtml}
-  </tbody>
-</table>
-          ${fotosItens ? `<h3>Fotos deste equipamento</h3><div class="fotos-container">${fotosItens}</div>` : ''}
-        </section>
-      `;
-    }).join('');
-
-    const assinaturaHtml = assinatura ? `<img class="assinatura" src="${assinatura}" />` : '<p>Sem assinatura registrada.</p>';
-
-    const numeroEntrega = await gerarNumeroEntrega();
-
-    const linkEntrega = `https://brsequipamentos.com.br/entrega/${numeroEntrega}`;
-
-    const qrCodeBase64 = `https://quickchart.io/qr?text=${encodeURIComponent(linkEntrega)}&size=140`;
-
-    return `
-      <html>
-        <head>
-          <meta charset="utf-8" />
-          <style>
-            body {
-  font-family: Arial, sans-serif;
-  padding: 0;
-  zoom: 1;
-  margin: 0;
-  color: #111827;
-  background: #ffffff;
-}
-
-.pagina {
-  padding: 28px;
-}
-
-<div class="cabecalhoPremium">
-
-  <div class="logoArea">
-    <img
-      class="logoPremium"
-      src="data:image/png;base64,${logoBase64}"
-    />
-  </div>
-
-  <div class="slogan">
-    Soluções que geram produtividade no campo.
-  </div>
-
-  <div class="contatosPdf">
-
-  <div class="linhaContato">
-    <span class="iconeContato">📍</span>
-
-    <div class="textoContato">
-      Rua Ronald Tkotz, 3808<br/>
-      Jardim Tarobá, Cambé - PR<br/>
-      86192-171
-    </div>
-  </div>
-
-  <div class="linhaDivisoria"></div>
-
-  <div class="linhaContato">
-    <span class="iconeContato">☎</span>
-
-    <div class="textoContato">
-      (43) 3316-6045
-    </div>
-  </div>
-
-  <div class="linhaDivisoria"></div>
-
-  <div class="linhaContato">
-    <span class="iconeContato">✉</span>
-
-    <div class="textoContato">
-      fabio.ribeiro@brsequipamentos.com.br
-    </div>
-  </div>
-
-</div>
-
-    <div class="contatoItem">
-      <span class="iconeContato">☎</span>
-      <span>(43) 3316-6045</span>
-    </div>
-
-    <div class="contatoItem">
-      <span class="iconeContato">✉</span>
-      <span>fabio.ribeiro@brsequipamentos.com.br</span>
-    </div>
-
-  </div>
-
-</div>
-
-.semFotoBox {
-  background: #f4f7fb;
-  border: 1px dashed #b8c7da;
-  border-radius: 12px;
-  padding: 18px;
-  margin: 14px 0 20px;
-  text-align: center;
-}
-
-.semFoto {
-  color: #6b7a90;
-  font-style: italic;
-  margin: 0;
-}
-
-.cabecalhoPremium{
-  background:#ffffff;
-  text-align:center;
-  padding:0px 20px 4px 20px;
-}
-
-.logoArea{
-  margin:0;
-  padding:0;
-}
-
-<div class="faixaTitulo">
-
-  <div class="tituloPremium">
-    BRS Equipamentos Agrícolas
-  </div>
-
-  <div class="numeroEntregaPremium">
-    Entrega Técnica Nº ${numeroEntrega}
-  </div>
-
-<div class="validacaoBox">
-  Código de validação:
-  <strong>${numeroEntrega}</strong>
-</div>
-
-<div class="linkValidacao">
-  ${linkEntrega}
-</div>
-
-  <div class="subtituloPremium">
-    Relatório de Entrega Técnica / Checklist de Equipamentos
-  </div>
-
-<div class="tecnicoResponsavel">
-  Técnico responsável: ${usuario?.email || 'Não identificado'}
-</div>
-
-</div>
-
-.dados {
-  background: #f1f5f9;
-  border-left: 5px solid #123c69;
-  border-radius: 10px;
-  padding: 14px;
-  margin-bottom: 18px;
-}
-
-table {
-  width: 100%;
-  border-collapse: collapse;
-  margin-top: 12px;
-}
-
-th {
-  background: #123c69;
-  color: white;
-  padding: 10px;
-  font- size: 13px;
-  font-weight: 600;
-}
-
-td {
-  border: 1px solid #d1d5db;
-  padding: 8px;
-  font-size: 12px;
-}
-
-.resumo{
-  display:flex;
-  justify-content:space-between;
-  gap:12px;
-  margin-top:14px;
-  margin-bottom:18px;
-}
-
-.box{
-  flex:1;
-  background:linear-gradient(180deg,#ffffff 0%,#f1f5f9 100%);
-  border:1px solid #d1d5db;
-  border-radius:12px;
-  padding:14px;
-  text-align:center;
-  box-shadow:0 2px 6px rgba(0,0,0,0.08);
-}
-
-.infoCliente {
-  background: #f5f7fa;
-  border: 1px solid #dbe3ea;
-  border-radius: 10px;
-  padding: 18px;
-  margin-bottom: 25px;
-}
-
-.infoCliente h2 {
-  color: #123c69;
-  margin-bottom: 15px;
-}
-
-.infoCliente p {
-  margin: 6px 0;
-  font-size: 14px;
-}
-
-.numero{
-  font-size:24px;
-  font-weight:bold;
-  color:#123c69;
-  margin-bottom:6px;
-}
-
-.rodape{
-  margin-top:20px;
-  padding-top:12px;
-  border-top:1px solid #d1d5db;
-  text-align:center;
-  font-size:10px;
-  color:#64748b;
-}
-
-tr:nth-child(even) {
-  background: #f8fafc;
-}
-
-.centro {
-  text-align: center;
-  font-weight: bold;
-}
-
-.ok {
-  color: #15803d;
-}
-
-.nao {
-  color: #b42318;
-}
-
-.fotoEquipamentoBox {
-  margin: 14px 0 18px;
-}
-
-.fotoEquipamentoBox h3 {
-  color: #123c69;
-  margin-bottom: 10px;
-}
-
-.fotoEquipamentoPdf {
-  width: 100%;
-  max-height: 280px;
-  object-fit: cover;
-  border-radius: 10px;
-  border: 1px solid #dbe4ea;
-}
-
-.semFoto {
-  color: #6b7a90;
-  font-style: italic;
-}
-
-.foto {
-  width: 170px;
-  height: 125px;
-  object-fit: cover;
-  border: 1px solid #d1d5db;
-  border-radius: 10px;
-  margin: 8px 8px 8px 0;
-}
-
-.fotos-container {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-  margin-top: 10px;
-}
-
-.foto-item {
-  width: 180px;
-  border: 1px solid #d1d5db;
-  border-radius: 10px;
-  padding: 8px;
-  background: #f8fafc;
-}
-
-.assinatura {
-  width: 320px;
-  height: 120px;
-  object-fit: contain;
-  border: 1px solid #d1d5db;
-  margin-top: 8px;
-  border-radius: 8px;
-}
-
-.observacoes {
-  margin-top: 22px;
-  padding: 14px;
-  border-radius: 10px;
-  background: #f8fafc;
-  border: 1px solid #d1d5db;
-}
-
-.rodape {
-  margin-top: 28px;
-  padding-top: 12px;
-  border-top: 1px solid #d1d5db;
-  font-size: 11px;
-  color: #64748b;
-  text-align: center;
-}
-
-.equipamento {
-  margin-bottom: 28px;
-}
-
-.semFoto {
-  color: #64748b;
-  font-style: italic;
-}
-
-.cabecalhoPremium{
-  background:#ffffff;
-  text-align:center;
-  padding:8px 20px 14   px 20px;
-}
-
-.logoArea{
-  margin:0;
-  padding:0;
-}
-
-.logoPremium{
-  width:270px;
-  height:160px;
-  object-fit:contain;
-  display:block;
-  margin:0 auto 2px auto;
-}   
-
-.slogan{
-  font-size:15px;
-  font-weight:600;
-  color:#17325c;
-  margin-top:-6px;
-  margin-bottom:10px;
-}
-
-.iconeContato{
-  margin-right:6px;
-  font-size:15px;
-}   
-
-.faixaTitulo{
-  background:linear-gradient(135deg,#052554 0%,#0b3d7a 100%);
-  color:white;
-  text-align:center;
-  padding:24px 20px;
-  border-bottom:5px solid #38b44a;
-  margin-top: 8px;
-}
-
-.tituloPremium{
-  font-size:28px;
-  font-weight:bold;
-  margin-bottom:14px;
-}
-
-.numeroEntregaPremium{
-  display:inline-block;
-  border:1.5px solid rgba(255,255,255,0.55);
-  border-radius:12px;
-  padding:10px 26px;
-  font-size:21px;
-  margin-bottom:14px;
-}
-
-.subtituloPremium{
-  font-size:16px;
-}
-
-.tecnicoResponsavel{
-  text-align:center;
-  color:#dbeafe;
-  font-size:12px;
-  margin-top:8px;
-}
-
-.contatosPdf {
-  width: 100%;
-  max-width: 420px;
-  margin: 18px auto 14px;
-}
-
-.linhaContato{
-  margin-bottom:6px;
-  font-size:14px;
-}
-
-.iconeContato {
-  font-size: 18px;
-  width: 28px;
-  text-align: center;
-}
-
-.textoContato {
-  color: #243b63;
-  font-size: 16px;
-  line-height: 1.5;
-  vtext-align: left;
-}
-
-.linhaDivisoria {
-  height: 1px;
-  background: #d9e2ef;
-  margin-left: 42px;
-}
-
-.validacaoBox{
-  margin-top:10px;
-  font-size:13px;
-  color:#dbeafe;
-  text-align:center;
-}
-
-.linkValidacao{
-  margin-top:5px;
-  font-size:11px;
-  color:#93c5fd;
-  text-align:center;
-  word-break:break-all;
-}
-
-           </style>
-           </head>
-          
-        <body>
-        <div class="cabecalhoPremium">
-
-  <div class="logoArea">
-    <img class="logoPremium" src="data:image/jpeg;base64,${logoBase64}" />
-  </div>
-
-  <div class="slogan">Soluções que geram produtividade no campo.</div>
-
-  <div class="contatosBRS">
-
-    <div class="contatoItem">
-      <span class="iconeContato">📍</span>
-      <span>
-        Rua Ronald Tkotz, 3808<br/>
-        Jardim Tarobá, Cambé - PR<br/>
-        86192-171
-      </span>
-    </div>
-
-    <div class="contatoItem">
-      <span class="iconeContato">☎</span>
-      <span>(43) 3316-6045</span>
-    </div>
-
-    <div class="contatoItem">
-      <span class="iconeContato">✉</span>
-      <span>fabio.ribeiro@brsequipamentos.com.br</span>
-    </div>
-
-  </div>
-
-</div>
-
-<div class="faixaTitulo">
-
-  <div class="tituloPremium">
-    BRS Equipamentos Agrícolas
-  </div>
-
-  <div class="numeroEntregaPremium">
-    Entrega Técnica Nº ${numeroEntrega}
-  </div>
-
-  <div class="validacaoBox">
-  Código de validação:
-  <strong>${numeroEntrega}</strong>
-</div>
-
-<div class="linkValidacao">
-  ${linkEntrega}
-</div>
-
-  <div class="subtituloPremium">
-    Relatório de Entrega Técnica / Checklist de Equipamentos
-  </div>
-
-</div>
-        <div class="conteudo">    
-        <div class="infoCliente">
-         <h2>Dados do pedido e cliente</h2>
-           <p><strong>Número do pedido:</strong> ${dados.numeroPedido || ''}</p>
-           <p><strong>Cliente:</strong> ${dados.cliente || ''}</p>
-           <p><strong>Endereço:</strong> ${dados.endereco || ''}</p>
-           <p><strong>Cidade / Estado:</strong> ${dados.cidade || ''} / ${dados.estado || ''}</p>
-           <p><strong>Telefone:</strong> ${dados.telefone || ''}</p>
-           <p><strong>E-mail:</strong> ${dados.emailCliente || ''}</p>
-           <p><strong>Responsável:</strong> ${dados.responsavel || ''}</p>
-           <p><strong>Técnico responsável:</strong> ${dados.tecnico || ''}</p>
-           <p><strong>Data:</strong> ${dados.data || ''}</p>
-        </div>
-           <h2>Equipamentos verificados</h2>
-          ${equipamentosHtml}
-        </div>
-
-          <h2>Observações gerais</h2>
-          <p>${dados.observacoes || 'Sem observações.'}</p>
-          <h2>Assinatura do cliente / responsável</h2>
-          ${assinaturaHtml}
-    
-}
-          <h2>Resumo final da inspeção</h2>
-
-<div class="resumo">
-  <div class="box">
-    <div class="numero">${resumo.ok}</div>
-    <div>OK</div>
-  </div>
-
-  <div class="box">
-    <div class="numero">${resumo.nao}</div>
-    <div>Não</div>
-  </div>
-
-  <div class="box">
-    <div class="numero">${resumo.pendentes}</div>
-    <div>Pendentes</div>
-  </div>
-</div>
-
-          <div class="rodape">Documento gerado pelo aplicativo de checklist técnico da BRS Equipamentos Agrícolas.</div>
-        </body>
-      </html>
-    `;
-
+  async function obterVisitaCompletaLocal(visitaResumo) {
+    const pedidoBusca = String(
+      visitaResumo?.numero_pedido ||
+      visitaResumo?.numeroPedido ||
+      visitaResumo?.dados?.numeroPedido ||
+      ''
+    ).trim();
+
+    if (!pedidoBusca) return visitaResumo;
+
+    const chavePedido = getStorageKeyFromPedido(pedidoBusca);
+    if (!chavePedido) return visitaResumo;
+
+    const salvoCompleto = await getItemSeguroStorage(chavePedido, 'visita completa por pedido');
+    if (!salvoCompleto) return visitaResumo;
+
+    try {
+      const visitaCompleta = JSON.parse(salvoCompleto);
+      if (Array.isArray(visitaCompleta?.equipamentos) && visitaCompleta.equipamentos.length > 0) {
+        return visitaCompleta;
+      }
+    } catch (erro) {
+      console.log('Erro parseando visita completa por pedido:', erro);
     }
 
-async function gerarPdf(enviarEmail = false) {
-  if (!dados.cliente) {
-    Alert.alert('Atenção', 'Preencha o nome do cliente antes de gerar o PDF.');
-    return;
+    return visitaResumo;
   }
 
-  try {
-    const asset = Asset.fromModule(LOGO_FIXO);
-    await asset.downloadAsync();
+  function carregarVisitaNaTela(visitaOriginal, modo = 'continuar') {
+    const visita = normalizarVisitaHistorico(visitaOriginal);
 
-    const logoUri = asset.localUri || asset.uri;
+    console.log('ABRINDO VISITA DO HIST�RICO:', visita);
+    console.log('EQUIPAMENTOS DA VISITA:', visita.equipamentos);
+    console.log('DADOS DA VISITA:', visita.dados);
 
-    const logoFile = new File(logoUri);
-    const logoBase64 = await logoFile.base64();
+    if (!Array.isArray(visita.equipamentos) || visita.equipamentos.length === 0) {
+      Alert.alert(
+        'Relatórios incompleto',
+        'Esta visita foi salva apenas com o resumo. Não encontrei os equipamentos completos para revisar ou gerar PDF. Para as próximas visitas, esta versão passa a guardar os dados completos no histórico do celular e no Supabase.'
+      );
+    }
 
-    const equipamentosComFotosBase64 = await Promise.all(
-      equipamentos.map(async (eq) => ({
+    setDados(visita.dados);
+
+    setEquipamentos(
+      (visita.equipamentos || []).map((eq) => ({
         ...eq,
-        fotoBase64: eq.foto ? await new File(eq.foto).base64() : null,
-        itens: await Promise.all(
-          eq.itens.map(async (item) => ({
-            ...item,
-            fotoBase64: item.foto ? await new File(item.foto).base64() : null,
-          }))
-        ),
+        itens: eq.itens || [],
       }))
     );
 
-    const arquivo = await Print.printToFileAsync({
-      html: await montarHtmlPdf(logoBase64, equipamentosComFotosBase64),
-    });
+    setAssinatura(visita.assinatura || null);
 
-    await salvarHistorico();
+    setPedidoEncontrado(
+      visita.pedidoEncontrado || {
+        numero_pedido: visita.numero_pedido || visita.numeroPedido || visita.dados?.numeroPedido || '',
+        cliente: visita.cliente || visita.dados?.cliente || '',
+        cidade: visita.cidade || visita.dados?.cidade || '',
+        equipamentos: visita.equipamentos || [],
+        status: visita.finalizado ? 'finalizado' : 'em andamento',
+      }
+    );
 
-    if (enviarEmail) {
-      const disponivel = await MailComposer.isAvailableAsync();
+    setNumeroPedido(String(visita.numero_pedido || visita.numeroPedido || visita.dados?.numeroPedido || ''));
+    setEtapaVisita('resumo');
+    setEquipamentoAtual(null);
+    setTela('visita');
+  }
 
-      if (!disponivel) {
-        Alert.alert('E-mail indisponível', 'Configure um aplicativo de e-mail no celular.');
+  async function continuarVisita(visita) {
+    const visitaCompleta = await obterVisitaCompletaLocal(visita);
+    const visitaSegura = normalizarVisitaHistorico(visitaCompleta);
+
+    const pedirLoginAntesDeAbrir = (modo = 'continuar') => {
+      setAcaoAposLogin({
+        tipo: 'continuarVisita',
+        visita: visitaSegura,
+        modo,
+      });
+
+      setTela('pedido');
+
+      Alert.alert(
+        'Login necessário',
+        'Entre com seu usuário e senha para continuar esta visita do ponto salvo.'
+      );
+    };
+
+    if (visitaSegura.finalizado) {
+      Alert.alert(
+        'Visita finalizada',
+        'Esta entrega já foi finalizada. Ela será aberta apenas para visualização, reimpressão ou reenvio do PDF.',
+        [
+          { text: 'Cancelar', style: 'cancel' },
+          {
+            text: 'Visualizar',
+            onPress: () => {
+              if (!usuario) {
+                pedirLoginAntesDeAbrir('visualizar');
+                return;
+              }
+
+              carregarVisitaNaTela(visitaSegura, 'visualizar');
+            },
+          },
+        ]
+      );
+      return;
+    }
+
+    if (!usuario) {
+      pedirLoginAntesDeAbrir('continuar');
+      return;
+    }
+
+    carregarVisitaNaTela(visitaSegura, 'continuar');
+  }
+
+  function visualizarVisitaFinalizada(visita) {
+    carregarVisitaNaTela(visita, 'visualizar');
+  }
+
+  function gerarPdfVisitaHistorico(visita, enviarEmail = false) {
+    carregarVisitaNaTela(visita, 'visualizar');
+
+    setTimeout(() => {
+      gerarPdf(enviarEmail);
+    }, 700);
+  }
+
+  async function gerarNumeroEntrega() {
+    const anoAtual = new Date().getFullYear();
+
+    const { data, error } = await supabase
+      .from('controle_entregas')
+      .select('*')
+      .eq('ano', anoAtual)
+      .single();
+
+    if (error) {
+      console.log(error);
+      return `FC-${anoAtual}-0001`;
+    }
+
+    const proximoNumero = data.ultimo_numero + 1;
+
+    await supabase
+      .from('controle_entregas')
+      .update({
+        ultimo_numero: proximoNumero,
+      })
+      .eq('id', data.id);
+
+    const numeroFormatado = String(proximoNumero).padStart(4, '0');
+
+    return `FC-${anoAtual}-${numeroFormatado}`;
+  }
+
+  async function fazerLogin() {
+    const emailLimpo = String(emailLogin || '').trim().toLowerCase();
+    const senhaLimpa = String(senhaLogin || '').trim();
+
+    if (!emailLimpo || !senhaLimpa) {
+      Alert.alert('Aten??o', 'Preencha e-mail e senha.');
+      return;
+    }
+
+    try {
+      const { data: sessao, error: erroLogin } = await supabase.auth.signInWithPassword({
+        email: emailLimpo,
+        password: senhaLimpa,
+      });
+
+      if (erroLogin || !sessao?.user) {
+        Alert.alert('Aten??o', 'E-mail ou senha inv?lidos.');
         return;
       }
 
-      await MailComposer.composeAsync({
-        recipients: dados.emailCliente ? [dados.emailCliente] : [],
-        subject: `Entrega técnica - ${dados.cliente}`,
-        body: `Olá, segue em anexo o relatório de entrega técnica da visita realizada em ${dados.data}.
+      const tecnico = await buscarTecnicoAtivoPorEmail(emailLimpo);
 
-Atenciosamente,
-${dados.empresa || 'BRS Equipamentos Agrícolas'}`,
-        attachments: [arquivo.uri],
-      });
-    } else {
-      await Sharing.shareAsync(arquivo.uri);
+      if (!tecnico) {
+        await supabase.auth.signOut();
+        Alert.alert('Aten??o', 'T?cnico inativo ou sem acesso a esta empresa.');
+        return;
+      }
+
+      const usuarioLogado = {
+        ...sessao.user,
+        nome: tecnico.nome,
+        empresa: tecnico.empresa,
+        tecnico,
+      };
+
+      setUsuario(usuarioLogado);
+
+      if (acaoAposLogin?.tipo === 'continuarVisita' && acaoAposLogin?.visita) {
+        const visitaPendente = acaoAposLogin.visita;
+        const modoPendente = acaoAposLogin.modo || 'continuar';
+
+        setAcaoAposLogin(null);
+
+        setTimeout(() => {
+          carregarVisitaNaTela(visitaPendente, modoPendente);
+        }, 50);
+
+        return;
+      }
+
+      setTela('pedido');
+    } catch (erro) {
+      console.log('Erro ao fazer login:', erro);
+      Alert.alert('Erro', erro?.message || 'N?o foi poss?vel fazer login.');
     }
-  } catch (error) {
-    console.log(error);
-    Alert.alert('Erro', 'Não foi possível gerar o PDF.');
   }
-}
+
+  async function verificarLogin() {
+    try {
+      const { data } = await supabase.auth.getSession();
+
+      if (data?.session?.user) {
+        const tecnico = await buscarTecnicoAtivoPorEmail(data.session.user.email);
+        setUsuario({
+          ...data.session.user,
+          nome: tecnico?.nome || data.session.user.email,
+          empresa: tecnico?.empresa || obterEmpresaAtual(),
+          tecnico,
+        });
+      }
+    } catch (erro) {
+      console.log('Erro ao verificar login:', erro);
+    }
+  }
+
+  async function sairSistema() {
+    await supabase.auth.signOut();
+    setUsuario(null);
+  }
+
+  async function gerarPdf(enviarEmail = false) {
+    await gerarPdfVisita({
+      enviarEmail,
+      equipamentos,
+      dados,
+      pedidoEncontrado,
+      logoModule: LOGO_FIXO,
+      numeroPedido,
+      usuario,
+      assinatura,
+      gerarNumeroEntrega,
+    });
+  }
 
   function statusEquipamento(eq) {
-  const itens = (eq.itens || []).filter((i) => i.ativo !== false);
+    const itens = (eq.itens || []).filter((i) => i.ativo !== false);
 
-  if (itens.length === 0) return 'nao_iniciado';
+    if (itens.length === 0) return 'nao_iniciado';
 
-  const ok = itens.filter((i) => i.resposta === 'OK' || i.ok === true).length;
-  const nao = itens.filter((i) => i.resposta === 'NAO' || i.nao === true).length;
-  const pendentes = itens.filter(
-    (i) => !i.resposta && i.ok !== true && i.nao !== true
-  ).length;
+    const ok = itens.filter((i) => i.resposta === 'OK' || i.ok === true).length;
+    const nao = itens.filter((i) => i.resposta === 'NAO' || i.nao === true).length;
+    const pendentes = itens.filter(
+      (i) => !i.resposta && i.ok !== true && i.nao !== true
+    ).length;
 
-  if (ok === 0 && nao === 0) return 'nao_iniciado';
-  if (nao > 0 || pendentes > 0) return 'pendente';
-  return 'concluido';
-}
+    if (ok === 0 && nao === 0) return 'nao_iniciado';
+    if (nao > 0 || pendentes > 0) return 'pendente';
+    return 'concluido';
+  }
 
   function BotoesEquipamentos() {
     return (
       <View style={styles.abasEquipamentos}>
         {equipamentos.map((eq, index) => {
           const status = statusEquipamento(eq);
+          const itens = (eq.itens || []).filter((item) => item.ativo !== false);
+          const totalItens = itens.length;
+          const itensPreenchidos = itens.filter(
+            (item) => item.resposta === 'OK' || item.resposta === 'NAO'
+          ).length;
 
-          const totalItens = eq.checklist?.length || 0;
+          const salvoManual = equipamentosSalvos[index] === true;
 
-const itensPreenchidos =
-  eq.checklist?.filter((item) => item.status === 'ok' || item.status === 'nao')
-    .length || 0;
+          const corFundo =
+            status === 'nao_iniciado'
+              ? '#dc2626'
+              : status === 'pendente'
+                ? '#f59e0b'
+                : '#16a34a';
 
-const corFundo =
-  status === 'nao_iniciado'
-    ? '#dc2626'
-    : status === 'pendente'
-    ? '#f59e0b'
-    : '#16a34a';
+          const corTexto = status === 'pendente' ? '#111827' : '#ffffff';
 
-const corTexto =
-  status === 'pendente'
-    ? '#111827'
-    : '#ffffff';
+          const icone =
+            status === 'concluido'
+              ? '�S&'
+              : salvoManual || status === 'pendente'
+                ? '�xx�'
+                : '�x�';
 
-console.log('STATUS EQUIPAMENTO:', eq.nome, status);
-
-          console.log('STATUS EQUIPAMENTO:', eq.nome, status);
+          const textoStatus =
+            status === 'concluido'
+              ? 'Concluído'
+              : salvoManual || status === 'pendente'
+                ? 'Em andamento'
+                : 'Não iniciado';
 
           return (
-          <TouchableOpacity
-            key={`${eq.nome}-${index}`}
-            style={[
-  styles.abaEquipamento,
-  { backgroundColor: corFundo },
-  equipamentoAtual === index ? styles.abaAtiva : null,
-]}
-            onPress={() => selecionarEquipamentoVisita(index)}
-          >
-            <Text
-  style={[
-    styles.abaTexto,
-    { color: corTexto },
-    equipamentoAtual === index ? styles.abaTextoAtivo : null,
-  ]}
->
-              {index + 1}. {eq.nome || 'Equipamento'} ({itensPreenchidos}/{totalItens})
-            </Text>
-          </TouchableOpacity>
-        );
+            <TouchableOpacity
+              key={`${eq.nome}-${eq.tag || index}-${index}`}
+              style={[
+                styles.abaEquipamento,
+                { backgroundColor: corFundo },
+                equipamentoAtual === index ? styles.abaAtiva : null,
+              ]}
+              onPress={() => selecionarEquipamentoVisita(index)}
+            >
+              <Text
+                style={[
+                  styles.abaTexto,
+                  { color: corTexto },
+                  equipamentoAtual === index ? styles.abaTextoAtivo : null,
+                ]}
+              >
+                {icone} {index + 1}. {eq.nome || eq.tipo || 'Equipamento'}
+              </Text>
+
+              <Text style={[styles.abaSubTexto, { color: corTexto }]}>
+                {itensPreenchidos}/{totalItens} itens ⬢ {textoStatus}
+              </Text>
+            </TouchableOpacity>
+          );
         })}
       </View>
     );
   }
 
-async function selecionarEquipamentoVisita(index) {
-  const equipamentoSelecionado = equipamentos[index];
+  async function selecionarEquipamentoVisita(index) {
+    const equipamentoSelecionado = equipamentos[index];
 
-  console.log(
-  'OBJETO COMPLETO:',
-  JSON.stringify(equipamentoSelecionado, null, 2)
-);
-
-  setEquipamentoAtual(index);
-
-  const tag =
-  equipamentoSelecionado.tag ||
-  equipamentoSelecionado.TAG ||
-  equipamentoSelecionado.codigo_tag ||
-  equipamentoSelecionado.tag_equipamento ||
-  equipamentoSelecionado.descritivo?.split('-')[0] ||
-  equipamentoSelecionado.modelo?.split('-')[0];
-
-console.log('EQUIPAMENTO:', equipamentoSelecionado);
-console.log('TAG:', tag);
-
-if (!tag) {
-  Alert.alert(
-    'Checklist não encontrado',
-    'Este equipamento não possui TAG cadastrada.'
-  );
-  return;
-}
-
-  const checklistOnline = await carregarChecklistDoSupabase(
-  tag.trim()
-);
-
-  if (!checklistOnline || checklistOnline.length === 0) {
-    Alert.alert(
-      'Checklist não encontrado',
-      `Nenhum checklist encontrado para a TAG ${equipamentoSelecionado.tag}.`
+    console.log(
+      'OBJETO COMPLETO:',
+      JSON.stringify(equipamentoSelecionado, null, 2)
     );
-    return;
+
+    setEquipamentoAtual(index);
+    setEtapaVisita('equipamento');
+
+    const tag =
+      equipamentoSelecionado.tag ||
+      equipamentoSelecionado.TAG ||
+      equipamentoSelecionado.codigo_tag ||
+      equipamentoSelecionado.tag_equipamento ||
+      equipamentoSelecionado.descritivo?.split('-')[0] ||
+      equipamentoSelecionado.modelo?.split('-')[0];
+
+    console.log('EQUIPAMENTO:', equipamentoSelecionado);
+    console.log('TAG:', tag);
+
+    if ((equipamentoSelecionado.itens || []).length > 0) {
+      return;
+    }
+
+    if (!tag) {
+      Alert.alert(
+        'Checklist não encontrado',
+        'Este equipamento não possui TAG cadastrada.'
+      );
+      return;
+    }
+
+    const checklistOnline = await carregarChecklistDoSupabase(
+      tag.trim()
+    );
+
+    if (!checklistOnline || checklistOnline.length === 0) {
+      Alert.alert(
+        'Checklist não encontrado',
+        `Nenhum checklist encontrado para a TAG ${equipamentoSelecionado.tag}.`
+      );
+      return;
+    }
+
+    setEquipamentos((atual) => {
+      const novo = [...atual];
+
+      novo[index] = {
+        ...novo[index],
+        itens: checklistOnline,
+      };
+
+      return novo;
+    });
+
+    Alert.alert(
+      'Checklist carregado',
+      `${checklistOnline.length} itens carregados para ${equipamentoSelecionado.nome}.`
+    );
   }
 
-  setEquipamentos((atual) => {
-    const novo = [...atual];
+  const historicoFiltrado = historico.filter((visita) => {
+    const texto = buscaHistorico.toLowerCase();
+    const tecnicoAtual = String(usuario?.tecnico?.nome || usuario?.email || '').trim().toLowerCase();
+    const pertenceAoTecnico = usuarioPodeGerenciar() || Number(visita.tecnico_id) === Number(obterTecnicoAtualId()) || String(visita.tecnico || '').trim().toLowerCase() === tecnicoAtual;
+    if (!pertenceAoTecnico) return false;
 
-    novo[index] = {
-      ...novo[index],
-      itens: checklistOnline,
-    };
-
-    return novo;
+    return (
+      visita.cliente?.toLowerCase().includes(texto) ||
+      visita.cidade?.toLowerCase().includes(texto) ||
+      visita.tecnico?.toLowerCase().includes(texto)
+    );
   });
 
-  Alert.alert(
-    'Checklist carregado',
-    `${checklistOnline.length} itens carregados para ${equipamentoSelecionado.nome}.`
-  );
-}
-
-const historicoFiltrado = historico.filter((visita) => {
-  const texto = buscaHistorico.toLowerCase();
-
-  return (
-    visita.cliente?.toLowerCase().includes(texto) ||
-    visita.cidade?.toLowerCase().includes(texto) ||
-    visita.tecnico?.toLowerCase().includes(texto)
-  );
-});
+  const homeScreenContextValue = {
+    styles,
+    LOGO_FIXO,
+    historico,
+    historicoFiltrado,
+    setTela,
+    buscaHistorico,
+    setBuscaHistorico,
+    Secao: SecaoEstavel,
+    normalizarVisitaHistorico,
+    visualizarVisitaFinalizada,
+    gerarPdfVisitaHistorico,
+    continuarVisita,
+    acaoAposLogin,
+    emailLogin,
+    setEmailLogin,
+    senhaLogin,
+    setSenhaLogin,
+    fazerLogin,
+    listaPedidos,
+    setNumeroPedido,
+    buscarPedido,
+    iniciarEntregaTecnicaPedido,
+    numeroPedido,
+    buscandoPedido,
+    pedidoEncontrado,
+    equipamentos,
+    abrirMaps,
+    tipoBanco,
+    setTipoBanco,
+    modelos,
+    novoTipo,
+    setNovoTipo,
+    adicionarTipoBanco,
+    novoItemBanco,
+    setNovoItemBanco,
+    adicionarItemBanco,
+    editandoBancoIndex,
+    textoEditandoBanco,
+    setTextoEditandoBanco,
+    salvarEdicaoBanco,
+    setEditandoBancoIndex,
+    removerItemBanco,
+    removerTipoBanco,
+    restaurarBancoInicial,
+    etapaVisita,
+    setEtapaVisita,
+    equipamento,
+    equipamentoAtual,
+    setEquipamentoAtual,
+    visitaScrollRef,
+    indicadoresVisitaAtual,
+    ultimoAtendimentoCliente,
+    resumo,
+    dados,
+    atualizarCampo,
+    clienteSelecionado,
+    setClienteSelecionado,
+    listaClientes,
+    clientesUnicos,
+    adicionarEquipamento,
+    assinatura,
+    setAssinaturaAberta,
+    limparAssinatura,
+    finalizarChecklist,
+    gerarPdf,
+    assinaturaAberta,
+    assinaturaRef,
+    salvarAssinatura,
+    confirmarAssinatura,
+    adicionarFotoItem,
+    alterarItemVisita,
+    editandoItemVisita,
+    setEditandoItemVisita,
+    textoEditandoVisita,
+    setTextoEditandoVisita,
+    salvarEdicaoItemVisita,
+    removerItemVisita,
+    atualizarEquipamento,
+    salvarEquipamentoAtual,
+    voltarParaResumoVisita,
+    escolherFotoEquipamento,
+    trocarTipoEquipamento,
+    categoriasAbertas,
+    toggleCategoria,
+    novoItemVisita,
+    setNovoItemVisita,
+    adicionarItemVisita,
+    progressoVisita,
+    BotoesEquipamentos,
+    carregarHistorico,
+    BotaoOpcao: BotaoOpcaoEstavel,
+    Campo: CampoEstavel,
+    removerEquipamento
+  };
+  function renderComContexto(Componente) {
+    return (
+      <HomeScreenProvider value={homeScreenContextValue}>
+        <Componente />
+      </HomeScreenProvider>
+    );
+  }
 
   if (tela === 'historico') {
-    return (
-      <SafeAreaView style={styles.safe}>
-        <ScrollView contentContainerStyle={styles.container}>
-          <View style={styles.header}>
-            <Image source={require('../assets/logo.png')} style={styles.logo} />
-            <Text style={styles.titulo}>Histórico de Visitas</Text>
-            <Text style={styles.subtitulo}>Entregas técnicas salvas no celular</Text>
-          </View>
-
-          <TouchableOpacity style={styles.botaoConfig} onPress={() => setTela('visita')}>
-            <Text style={styles.botaoConfigTexto}>Voltar para a visita</Text>
-          </TouchableOpacity>
-
-          <TextInput
-  style={styles.inputBusca}
-  placeholder="Buscar cliente, cidade ou técnico..."
-  value={buscaHistorico}
-  onChangeText={setBuscaHistorico}
-/>
-
-          <Secao titulo="Visitas salvas">
-            {historico.length === 0 ? (
-              <Text style={styles.semFoto}>Nenhuma visita salva ainda. Gere um PDF para salvar uma visita no histórico.</Text>
-            ) : (
-              historicoFiltrado.map((visita) => (
-                <View key={visita.id} style={styles.historicoCard}>
-                  <Text style={styles.historicoEntrega}>
-  Entrega: {visita.numero_entrega || visita.numero_os || 'Sem número'}
-</Text>
-
-<Text style={styles.historicoPedido}>
-  Pedido: #{visita.numero_pedido || '-'}
-</Text>
-
-<Text style={styles.historicoTitulo}>
-  {visita.cliente || 'Cliente não informado'}
-</Text>
-
-<Text style={styles.infoTexto}>
-  Cidade: {visita.cidade || '-'}
-</Text>
-
-<Text style={styles.infoTexto}>
-  Data: {visita.data_visita || visita.data || '-'}
-</Text>
-
-<Text style={styles.infoTexto}>
-  Técnico: {visita.tecnico || '-'}
-</Text>
-
-<View style={styles.statusHistoricoContainer}>
-  <Text style={styles.statusHistorico}>
-    {visita.total_pendentes === 0
-      ? '🟢 Finalizado'
-      : '🟡 Em andamento'}
-  </Text>
-</View>
-
-<Text style={styles.resumoHistorico}>
-  OK: {visita.total_ok || 0} | Não: {visita.total_nao || 0} | Pendentes: {visita.total_pendentes || 0}
-</Text>
-
-<Text style={styles.infoTexto}>
-  Equipamentos: {visita.equipamentos?.length || 0}
-</Text>
-
-<TouchableOpacity
-  style={styles.botaoPrincipal}
-  onPress={() => continuarVisita(visita)}
->
-  <Text style={styles.botaoPrincipalTexto}>
-    Continuar visita
-  </Text>
-</TouchableOpacity>
-
-                </View>
-              ))
-            )}
-          </Secao>
-
-          <TouchableOpacity style={styles.botaoRemoverGrande} onPress={limparHistorico}>
-            <Text style={styles.botaoRemoverTexto}>Limpar histórico deste celular</Text>
-          </TouchableOpacity>
-        </ScrollView>
-      </SafeAreaView>
-    );
+    return renderComContexto(HistoricoVisitasView);
   }
 
-if (!usuario) {
-  return (
-    <SafeAreaView style={styles.safe}>
-      <View style={{
-        flex: 1,
-        justifyContent: 'center',
-        padding: 24,
-      }}>
-
-        <Image
-          source={LOGO_FIXO}
-          style={{
-            width: 180,
-            height: 100,
-            resizeMode: 'contain',
-            alignSelf: 'center',
-            marginBottom: 30,
-          }}
-        />
-
-        <Text style={{
-          fontSize: 28,
-          fontWeight: 'bold',
-          textAlign: 'center',
-          color: '#123c69',
-          marginBottom: 30,
-        }}>
-          Login Técnico
-        </Text>
-
-        <TextInput
-          placeholder="E-mail do técnico"
-          placeholderTextColor="#9CA3AF"
-          value={emailLogin}
-          onChangeText={setEmailLogin}
-          autoCapitalize="none"
-          utoCorrect={false}
-          keyboardType="email-address"
-          textContentType="emailAddress"
-          style={{
-            borderWidth: 1,
-            borderColor: '#ccc',
-            borderRadius: 12,
-            padding: 14,
-            marginBottom: 16,
-            backgroundColor: '#fff',
-          }}
-        />
-
-        <TextInput
-          placeholder="Senha"
-          placeholderTextColor="#9CA3AF"
-          value={senhaLogin}
-          onChangeText={setSenhaLogin}
-          autoCapitalize="none"
-          autoCorrect={false}
-          textContentType="password"
-          secureTextEntry
-          style={{
-            borderWidth: 1,
-            borderColor: '#ccc',
-            borderRadius: 12,
-            padding: 14,
-            marginBottom: 20,
-            backgroundColor: '#fff',
-            color: '#000',
-          }}
-        />
-
-        <TouchableOpacity
-          onPress={fazerLogin}
-          style={{
-            backgroundColor: '#123c69',
-            padding: 16,
-            borderRadius: 12,
-          }}
-        >
-          <Text style={{
-            color: '#fff',
-            fontWeight: 'bold',
-            textAlign: 'center',
-            fontSize: 16,
-          }}>
-            Entrar
-          </Text>
-        </TouchableOpacity>
-
-      </View>
-    </SafeAreaView>
-  );
-}
+  if (!usuario) {
+    return renderComContexto(LoginTecnicoView);
+  }
 
   if (tela === 'pedido') {
-  return (
-    <SafeAreaView style={styles.safe}>
-      <ScrollView contentContainerStyle={styles.container}>
-        <View style={styles.header}>
-          <Image source={LOGO_FIXO} style={styles.logo} />
-
-          <Text style={styles.titulo}>
-            Buscar Pedido BRS
-          </Text>
-
-          <Text style={styles.subtitulo}>
-            Digite o número do pedido para iniciar a entrega técnica
-          </Text>
-        </View>
-
-        <View style={styles.card}>
-  <Text style={styles.subtitulo}>Pedidos disponíveis</Text>
-
-  <ScrollView
-  style={{ maxHeight: 300 }}
-  nestedScrollEnabled={true}
-  showsVerticalScrollIndicator={true}
->
-  {listaPedidos.map((pedido) => (
-    <TouchableOpacity
-      key={pedido.id}
-      style={styles.cardPedido}
-      onPress={() => {
-        setNumeroPedido(String(pedido.numero_pedido));
-      }}
-    >
-      <Text style={styles.tituloPedido}>
-        Pedido #{pedido.numero_pedido}
-      </Text>
-
-      <Text style={styles.clientePedido}>
-        {pedido.cliente || 'Cliente não informado'}
-      </Text>
-
-      <Text
-  style={[
-    styles.statusPedido,
-    {
-      color:
-        pedido.finalizado
-          ? '#22c55e'
-          : pedido.status === 'em_andamento'
-          ? '#eab308'
-          : '#ff9800',
-    },
-  ]}
->
-  • {pedido.finalizado ? 'finalizado' : pedido.status || 'pendente'}
-</Text>
-    </TouchableOpacity>
-  ))}
-</ScrollView>
-     </View>
-
-     <TextInput
-  style={styles.input}
-  placeholder="Número do pedido"
-  value={numeroPedido}
-  onChangeText={setNumeroPedido}
-/>
-
-<TouchableOpacity
-  style={styles.botaoPrincipal}
-  onPress={() => buscarPedido()}
->
-  <Text style={styles.botaoPrincipalTexto}>
-    {buscandoPedido ? 'Buscando...' : 'Buscar pedido'}
-  </Text>
-</TouchableOpacity>
-
-         <CardPedido
-  pedido={pedidoEncontrado}
-  equipamentos={equipamentos}
-  styles={styles}
-  onIniciar={() => setTela('visita')}
-  onAbrirMaps={() => abrirMaps(pedidoEncontrado)}
-/>
-      </ScrollView>
-    </SafeAreaView>
-  );
-}
-
-  if (tela === 'banco') {
-    return (
-      <SafeAreaView style={styles.safe}>
-        <ScrollView contentContainerStyle={styles.container}>
-          <View style={styles.header}>
-            <Image source={LOGO_FIXO} style={styles.logo} />
-            <Text style={styles.titulo}>Banco de Checklists BRS</Text>
-            <Text style={styles.subtitulo}>Modelos inteligentes por tipo de equipamento</Text>
-          </View>
-
-          <TouchableOpacity style={styles.botaoConfig} onPress={() => setTela('visita')}>
-            <Text style={styles.botaoConfigTexto}>Voltar para a visita</Text>
-          </TouchableOpacity>
-
-          <Secao titulo="Tipos de equipamentos cadastrados">
-            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-              <View style={styles.tiposContainer}>
-                {Object.keys(modelos).map((tipo) => (
-                  <TouchableOpacity
-                    key={tipo}
-                    style={[styles.tipoBotao, tipoBanco === tipo ? styles.tipoBotaoAtivo : null]}
-                    onPress={() => setTipoBanco(tipo)}
-                  >
-                    <Text style={[styles.tipoBotaoTexto, tipoBanco === tipo ? styles.tipoBotaoTextoAtivo : null]}>{tipo}</Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-            </ScrollView>
-
-            <Campo label="Criar novo tipo de equipamento" value={novoTipo} onChangeText={setNovoTipo} />
-            <TouchableOpacity style={styles.botaoPrincipal} onPress={adicionarTipoBanco}>
-              <Text style={styles.botaoPrincipalTexto}>Adicionar tipo ao banco</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity style={styles.botaoRemoverGrande} onPress={removerTipoBanco}>
-              <Text style={styles.botaoRemoverTexto}>Remover tipo selecionado</Text>
-            </TouchableOpacity>
-          </Secao>
-
-          <Secao titulo={`Itens padrão: ${tipoBanco}`}>
-            <Campo label="Novo item padrão" value={novoItemBanco} onChangeText={setNovoItemBanco} />
-            <TouchableOpacity style={styles.botaoPrincipal} onPress={adicionarItemBanco}>
-              <Text style={styles.botaoPrincipalTexto}>Adicionar item padrão</Text>
-            </TouchableOpacity>
-
-            {(modelos[tipoBanco] || []).map((item, index) => (
-              <View key={`${item}-${index}`} style={styles.configItem}>
-                {editandoBancoIndex === index ? (
-                  <>
-                    <TextInput style={styles.input} value={textoEditandoBanco} onChangeText={setTextoEditandoBanco} />
-                    <TouchableOpacity style={styles.botaoOkPequeno} onPress={salvarEdicaoBanco}>
-                      <Text style={styles.botaoPequenoTexto}>Salvar alteração</Text>
-                    </TouchableOpacity>
-                  </>
-                ) : (
-                  <>
-                    <Text style={styles.itemTexto}>{item}</Text>
-                    <View style={styles.botoesLinha}>
-                      <TouchableOpacity style={styles.botaoEditar} onPress={() => { setEditandoBancoIndex(index); setTextoEditandoBanco(item); }}>
-                        <Text style={styles.botaoEditarTexto}>Editar</Text>
-                      </TouchableOpacity>
-                      <TouchableOpacity style={styles.botaoRemover} onPress={() => removerItemBanco(index)}>
-                        <Text style={styles.botaoRemoverTexto}>Remover</Text>
-                      </TouchableOpacity>
-                    </View>
-                  </>
-                )}
-              </View>
-            ))}
-          </Secao>
-
-          <TouchableOpacity style={styles.botaoSecundario} onPress={restaurarBancoInicial}>
-            <Text style={styles.botaoSecundarioTexto}>Restaurar banco inicial da BRS</Text>
-          </TouchableOpacity>
-        </ScrollView>
-      </SafeAreaView>
-    );
+    return renderComContexto(PedidosView);
   }
 
-  return (
-    <SafeAreaView style={styles.safe}>
-      <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-        <ScrollView
-          contentContainerStyle={[
-          styles.container,
-           { paddingBottom: 110 }
-  ]}
->
+  if (tela === 'detalhePedido' && pedidoEncontrado) {
+    return renderComContexto(DetalhePedidoView);
+  }
 
-<View style={styles.dashboardGrid}>
+  if (tela === 'banco') {
+    return renderComContexto(BancoChecklistView);
+  }
 
-  <View style={styles.dashboardCard}>
-    <Text style={styles.dashboardNumero}>
-      {indicadoresVisitaAtual.visitas}
-    </Text>
-
-    <Text style={styles.dashboardTexto}>
-      Visitas
-    </Text>
-  </View>
-
-  <View style={styles.dashboardCard}>
-    <Text style={styles.dashboardNumero}>
-      {indicadoresVisitaAtual.equipamentos}
-    </Text>
-
-    <Text style={styles.dashboardTexto}>
-      Equipamentos
-    </Text>
-
-  </View>
-  <View style={styles.dashboardCardAlerta}>
-  <Text style={styles.dashboardNumero}>
-    {indicadoresVisitaAtual.pendentes}
-  </Text>
-
-  <Text style={styles.dashboardTexto}>
-    Itens pendentes
-  </Text>
-</View>
-
-<View style={styles.dashboardCardErro}>
-  <Text style={styles.dashboardNumero}>
-    {indicadoresVisitaAtual.nao}
-  </Text>
-
-  <Text style={styles.dashboardTexto}>
-    Não conformidades
-  </Text>
-</View>
-
-<View style={styles.linhaUltimoAtendimento}>
-
-<View style={styles.infoUltimo}>
-  <Ionicons
-  name="calendar-outline"
-  size={26}
-  color="#c0392b"
-/>
-
-  <Text style={styles.ultimoAtendimentoTitulo}>
-    Último atendimento
-  </Text>
-
-  <Text style={styles.ultimoAtendimentoTexto}>
-    {ultimoAtendimentoCliente}
-  </Text>
-</View>
-
-<View style={styles.divisorVertical} />
-
-<TouchableOpacity
-  onPress={() => {
-    setPedidoEncontrado(null);
-    setEquipamentos([]);
-    setTela('pedido');
-  }}
-  style={styles.botaoSairMini}
->
-  <Text style={styles.botaoSairMiniTexto}>
-    Voltar
-  </Text>
-</TouchableOpacity>
-
-</View> 
-
-</View>
-
-          <View style={styles.headerEntregaNovo}>
-
-  <View style={styles.headerTopoEntrega}>
-    <Image source={LOGO_FIXO} style={styles.logoEntregaNovo} />
-
-    <View style={styles.headerInfoEntrega}>
-      <Text style={styles.tituloEntregaNovo}>
-        {dados.empresa}
-      </Text>
-
-      <Text style={styles.subtituloEntregaNovo}>
-        Entrega técnica industrial
-      </Text>
-    </View>
-  </View>
-
-  <View style={styles.cardStatusEntrega}>
-    <Text style={styles.statusEntregaLabel}>
-      VISITA EM ANDAMENTO
-    </Text>
-
-    <Text style={styles.statusEntregaQtd}>
-      {equipamentos.length} equipamento(s)
-    </Text>
-  </View>
-
-</View>
-
-          <TouchableOpacity
-  style={styles.botaoHistorico}
-  onPress={() => {
-    carregarHistorico();
-    setTela('historico');
-  }}
->
-            <Text style={styles.botaoFinalizarTexto}>Abrir Histórico de Visitas</Text>
-          </TouchableOpacity>
-
-          <View style={styles.cardResumo}>
-            <View style={styles.resumoBox}><Text style={styles.resumoNumero}>{resumo.ok}</Text><Text style={styles.resumoTexto}>OK</Text></View>
-            <View style={styles.resumoBox}><Text style={styles.resumoNumero}>{resumo.nao}</Text><Text style={styles.resumoTexto}>Não</Text></View>
-            <View style={styles.resumoBox}><Text style={styles.resumoNumero}>{resumo.pendentes}</Text><Text style={styles.resumoTexto}>Pendentes</Text></View>
-          </View>
-
-          <Secao titulo="Dados do cliente e da visita">
-            <View style={styles.pickerContainer}>
-
-  <Picker
-    selectedValue={clienteSelecionado}
-    onValueChange={(itemValue) => {
-
-      setClienteSelecionado(itemValue);
-
-      const clienteEscolhido = listaClientes.find(
-        (c) => c.id === itemValue
-      );
-
-      if (clienteEscolhido) {
-
-        atualizarCampo('cliente', clienteEscolhido.nome);
-        atualizarCampo('cidade', clienteEscolhido.cidade || '');
-        atualizarCampo('emailCliente', clienteEscolhido.email || '');
-        
-
-      }
-    }}
-  >
-
-    <Picker.Item
-      label="Selecione um cliente"
-      value={null}
-    />
-
-    {clientesUnicos.map((item) => (
-      <Picker.Item
-        key={item.id}
-        label={item.nome}
-        value={item.id}
-      />
-    ))}
-  </Picker>
-
-</View>
-            <Campo label="Cliente" value={dados.cliente} onChangeText={(v) => atualizarCampo('cliente', v)} />
-            <Campo label="Endereço" value={dados.endereco} onChangeText={(v) => atualizarCampo('endereco', v)} />
-            <Campo label="Cidade" value={dados.cidade} onChangeText={(v) => atualizarCampo('cidade', v)} />
-            <Campo label="Estado" value={dados.estado} onChangeText={(v) => atualizarCampo('estado', v)} />
-            <Campo label="Telefone" value={dados.telefone} onChangeText={(v) => atualizarCampo('telefone', v)} />
-            <Campo label="E-mail do cliente" value={dados.emailCliente} onChangeText={(v) => atualizarCampo('emailCliente', v)} />
-            <Campo label="Responsável" value={dados.responsavel} onChangeText={(v) => atualizarCampo('responsavel', v)} />
-            <Campo label="Técnico responsável" value={dados.tecnico} onChangeText={(v) => atualizarCampo('tecnico', v)} />
-            <Campo label="Data" value={dados.data} onChangeText={(v) => atualizarCampo('data', v)} />
-          </Secao>
-
-          <Secao titulo="Equipamentos desta visita">
-            <BotoesEquipamentos />
-            <TouchableOpacity style={styles.botaoPrincipal} onPress={adicionarEquipamento}>
-              <Text style={styles.botaoPrincipalTexto}>Adicionar outro equipamento</Text>
-            </TouchableOpacity>
-          </Secao>
-
-          <Secao titulo="Dados do equipamento selecionado">
-
-            <Campo label="Nome do equipamento" value={equipamento.nome} onChangeText={(v) => atualizarEquipamento('nome', v)} />
-            <Campo label="Modelo" value={equipamento.modelo} onChangeText={(v) => atualizarEquipamento('modelo', v)} />
-            <Campo label="Número de série" value={equipamento.serie} onChangeText={(v) => atualizarEquipamento('serie', v)} />
-            <Campo label="Descritivo" value={equipamento.descritivo} onChangeText={(v) => atualizarEquipamento('descritivo', v)} />
-
-            <TouchableOpacity style={styles.botaoFoto} onPress={escolherFotoEquipamento}>
-              <Text style={styles.botaoFotoTexto}>{equipamento.foto ? 'Trocar foto do equipamento' : 'Adicionar foto do equipamento'}</Text>
-            </TouchableOpacity>
-            {equipamento.foto ? <Image source={{ uri: equipamento.foto }} style={styles.fotoPreview} /> : <Text style={styles.semFoto}>Sem foto deste equipamento</Text>}
-
-            <TouchableOpacity style={styles.botaoRemoverGrande} onPress={removerEquipamento}>
-              <Text style={styles.botaoRemoverTexto}>Remover este equipamento</Text>
-            </TouchableOpacity>
-          </Secao>
-
-          <Secao titulo="Adicionar item somente nesta visita">
-            <Campo label="Novo item da visita" value={novoItemVisita} onChangeText={setNovoItemVisita} />
-            <TouchableOpacity style={styles.botaoPrincipal} onPress={adicionarItemVisita}>
-              <Text style={styles.botaoPrincipalTexto}>Adicionar item ao equipamento</Text>
-            </TouchableOpacity>
-          </Secao>
-
-          <Secao titulo="Checklist do equipamento selecionado">
-           {(equipamento.itens || []).map((item, index) => {             
-              if (!item.ativo) return null;
-              return (
-                <View
-  key={`${item.texto}-${index}`}
-  style={[
-    styles.itemBox,
-    item.resposta === 'NAO' ? styles.itemBoxNao : null,
-  ]}
->
-                  {editandoItemVisita === index ? (
-                    <>
-                      <TextInput style={styles.input} value={textoEditandoVisita} onChangeText={setTextoEditandoVisita} />
-                      <TouchableOpacity style={styles.botaoOkPequeno} onPress={salvarEdicaoItemVisita}>
-                        <Text style={styles.botaoPequenoTexto}>Salvar alteração</Text>
-                      </TouchableOpacity>
-                    </>
-                  ) : (
-                    <>
-
-{(
-  index === 0 ||
-  ((equipamento.itens[index - 1] && equipamento.itens[index - 1].categoria
-    ? equipamento.itens[index - 1].categoria.trim()
-    : 'GERAL') !==
-    (item.categoria ? item.categoria.trim() : 'GERAL'))
-) ? (
-  <Text style={styles.categoriaTitulo}>
-  {item.categoria ? item.categoria.trim() : 'GERAL'}
-</Text>
-) : null}
-
-<Text style={styles.itemTexto}>
-  {item.texto}
-</Text>
-
-                      <View style={styles.botoesLinha}>
-                        <BotaoOpcao texto="OK" ativo={item.resposta === 'OK'} tipo="ok" onPress={() => alterarItemVisita(index, { resposta: 'OK' })} />
-                        <BotaoOpcao texto="Não" ativo={item.resposta === 'NAO'} tipo="nao" onPress={() => alterarItemVisita(index, { resposta: 'NAO' })} />
-                      </View>
-                      <TextInput style={styles.obsItem} placeholder="Observação deste item" placeholderTextColor="#666" value={item.obs} onChangeText={(v) => alterarItemVisita(index, { obs: v })} />
-                      <TouchableOpacity style={styles.botaoFotoItem} onPress={() => adicionarFotoItem(index)}>
-                        <Text style={styles.botaoFotoItemTexto}>{item.foto ? 'Trocar foto deste item' : 'Adicionar foto deste item'}</Text>
-                      </TouchableOpacity>
-                      {item.foto ? <Image source={{ uri: item.foto }} style={styles.fotoItem} /> : null}
-                      <View style={styles.botoesLinhaInferior}>
-                        <TouchableOpacity style={styles.botaoEditar} onPress={() => { setEditandoItemVisita(index); setTextoEditandoVisita(item.texto); }}>
-                          <Text style={styles.botaoEditarTexto}>Editar item</Text>
-                        </TouchableOpacity>
-                        <TouchableOpacity style={styles.botaoRemover} onPress={() => removerItemVisita(index)}>
-                          <Text style={styles.botaoRemoverTexto}>Remover item</Text>
-                        </TouchableOpacity>
-                      </View>
-                    </>
-                  )}
-                </View>
-              );
-            })}
-          </Secao>
-
-          <Secao titulo="Observações gerais da visita">
-            <TextInput style={styles.textArea} placeholder="Digite observações gerais da visita." value={dados.observacoes} onChangeText={(v) => atualizarCampo('observacoes', v)} multiline />
-          </Secao>
-
-          <Secao titulo="Assinatura do cliente / responsável">
-            {assinatura ? <Image source={{ uri: assinatura }} style={styles.assinaturaPreview} /> : <Text style={styles.semFoto}>Nenhuma assinatura registrada</Text>}
-            <TouchableOpacity style={styles.botaoFinalizar} onPress={() => setAssinaturaAberta(true)}>
-              <Text style={styles.botaoFinalizarTexto}>{assinatura ? 'Refazer assinatura' : 'Abrir tela de assinatura'}</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.botaoSecundario} onPress={limparAssinatura}>
-              <Text style={styles.botaoSecundarioTexto}>Limpar assinatura</Text>
-            </TouchableOpacity>
-          </Secao>
-
-          <TouchableOpacity style={styles.botaoFinalizar} onPress={finalizarChecklist}>
-
-            <Text style={styles.botaoFinalizarTexto}>Finalizar checklist</Text>
-          </TouchableOpacity> 
-
-          <TouchableOpacity style={styles.botaoPdf} onPress={() => gerarPdf(false)}>
-            <Text style={styles.botaoFinalizarTexto}>Gerar PDF</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity style={styles.botaoEmail} onPress={() => gerarPdf(true)}>
-            <Text style={styles.botaoFinalizarTexto}>Enviar PDF por e-mail</Text>
-          </TouchableOpacity>
-        </ScrollView>
-
-        <Modal visible={assinaturaAberta} animationType="slide">
-          <SafeAreaView style={styles.modalAssinatura}>
-            <View style={styles.modalTopo}>
-              <Text style={styles.modalTitulo}>Assinatura do cliente</Text>
-              <TouchableOpacity style={styles.botaoFechar} onPress={() => setAssinaturaAberta(false)}>
-                <Text style={styles.botaoFecharTexto}>Fechar</Text>
-              </TouchableOpacity>
-            </View>
-
-            <View style={styles.assinaturaTelaCheia}>
-              <SignatureScreen
-                ref={assinaturaRef}
-                onOK={salvarAssinatura}
-                onEmpty={() => Alert.alert('Assinatura vazia', 'Assine antes de salvar.')}
-                descriptionText="Assine dentro do quadro"
-                clearText=""
-                confirmText=""
-                webStyle={`.m-signature-pad { box-shadow: none; border: none; height: 100%; } .m-signature-pad--body { border: 2px solid #123c69; border-radius: 12px; top: 0; bottom: 0; } .m-signature-pad--footer { display: none; } body,html { background-color: #fff; width: 100%; height: 100%; }`}
-              />
-            </View>
-
-            <View style={styles.botoesAssinaturaModal}>
-              <TouchableOpacity style={styles.botaoLimparAssinatura} onPress={() => assinaturaRef.current?.clearSignature()}>
-                <Text style={styles.botaoFinalizarTexto}>Limpar</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.botaoSalvarAssinatura} onPress={confirmarAssinatura}>
-                <Text style={styles.botaoFinalizarTexto}>Salvar assinatura</Text>
-              </TouchableOpacity>
-            </View>
-          </SafeAreaView>
-        </Modal>
-      </KeyboardAvoidingView>
-    </SafeAreaView>
-  );
+  if (tela === 'visita') {
+    return renderComContexto(VisitaTecnicaView);
+  }
 }
-
-function Secao({ titulo, children }) {
-  return <View style={styles.card}><Text style={styles.secaoTitulo}>{titulo}</Text>{children}</View>;
-}
-
-function Campo({ label, value, onChangeText }) {
-  return (
-    <View style={styles.campoBox}>
-      <Text style={styles.label}>{label}</Text>
-      <TextInput style={styles.input} value={value} onChangeText={onChangeText} placeholder={label} />
-    </View>
-  );
-}
-
-function BotaoOpcao({ texto, ativo, tipo, onPress }) {
-  const estiloAtivo =
-    tipo === 'ok'
-      ? styles.botaoOkAtivo
-      : styles.botaoNaoAtivo;
-
-  return (
-    <TouchableOpacity
-      onPress={onPress}
-      style={[styles.botaoOpcao, ativo ? estiloAtivo : null]}
-    >
-      <Text
-        style={[
-          styles.botaoOpcaoTexto,
-          ativo ? styles.botaoOpcaoTextoAtivo : null,
-        ]}
-      >
-        {texto}
-      </Text>
-    </TouchableOpacity>
-  );
-}
-
-const styles = StyleSheet.create({
-
-  headerEntregaNovo: {
-  backgroundColor: '#ffffff',
-  borderRadius: 22,
-  padding: 20,
-  marginBottom: 18,
-  shadowColor: '#000',
-  shadowOpacity: 0.08,
-  shadowRadius: 10,
-  shadowOffset: {
-    width: 0,
-    height: 4,
-  },
-  elevation: 4,
-},
-
-headerTopoEntrega: {
-  flexDirection: 'row',
-  alignItems: 'center',
-},
-
-logoEntregaNovo: {
-  width: 72,
-  height: 72,
-  resizeMode: 'contain',
-},
-
-headerInfoEntrega: {
-  marginLeft: 14,
-  flex: 1,
-},
-
-tituloEntregaNovo: {
-  fontSize: 22,
-  fontWeight: '900',
-  color: '#123c69',
-},
-
-subtituloEntregaNovo: {
-  fontSize: 14,
-  color: '#64748b',
-  marginTop: 4,
-},
-
-cardStatusEntrega: {
-  marginTop: 18,
-  backgroundColor: '#eff6ff',
-  borderRadius: 16,
-  paddingVertical: 12,
-  paddingHorizontal: 16,
-  borderWidth: 1,
-  borderColor: '#bfdbfe',
-},
-
-statusEntregaLabel: {
-  fontSize: 12,
-  fontWeight: '800',
-  color: '#1d4ed8',
-  marginBottom: 4,
-},
-
-statusEntregaQtd: {
-  fontSize: 18,
-  fontWeight: '900',
-  color: '#123c69',
-},
-
-  dashboardGrid: {
-  flexDirection: 'row',
-  flexWrap: 'wrap',
-  justifyContent: 'space-between',
-  marginBottom: 16,
-},  
-
-categoriaTituloTexto: {
-  color: '#fff',
-  fontSize: 14,
-  fontWeight: 'bold',
-  textTransform: 'uppercase',
-},
-
-itemBoxNao: {
-  borderColor: '#b42318',
-  borderWidth: 2,
-  backgroundColor: '#fff5f5',
-},
-
-botaoOkAtivo: {
-  backgroundColor: '#1f7a4d',
-  borderColor: '#1f7a4d',
-},
-
-botaoNaoAtivo: {
-  backgroundColor: '#b42318',
-  borderColor: '#b42318',
-},
-
-categoriaTitulo: {
-  backgroundColor: '#1f3f6d',
-  color: '#fff',
-  fontSize: 14,
-  fontWeight: 'bold',
-  paddingVertical: 10,
-  paddingHorizontal: 12,
-  borderRadius: 8,
-  marginTop: 12,
-  marginBottom: 8,
-  textTransform: 'uppercase',
-},
-
-cardPedido: {
-  backgroundColor: '#ffffff',
-  borderRadius: 12,
-  padding: 14,
-  marginBottom: 10,
-  borderWidth: 1,
-  borderColor: '#d9e2ef',
-},
-
-tituloPedido: {
-  fontSize: 16,
-  fontWeight: 'bold',
-  color: '#1f3f68',
-},
-
-clientePedido: {
-  fontSize: 13,
-  color: '#333',
-  marginTop: 4,
-},
-
-statusPedido: {
-  fontSize: 12,
-  color: '#f59e0b',
-  marginTop: 4,
-  fontWeight: 'bold',
-},
-
-inputBusca: {
-  backgroundColor: '#fff',
-  borderRadius: 14,
-  paddingHorizontal: 16,
-  paddingVertical: 12,
-  marginBottom: 18,
-  borderWidth: 1,
-  borderColor: '#dbe4ea',
-  fontSize: 15,
-},
-
- divisorVertical: {
-  width: 1,
-  height: 70,
-  backgroundColor: '#dbe4ea',
-  marginHorizontal: 18,
-},
-
-linhaUltimoAtendimento: {
-  flexDirection: 'row',
-  alignItems: 'center',
-  justifyContent: 'space-between',
-  backgroundColor: '#fff',
-  borderRadius: 16,
-  padding: 18,
-  marginBottom: 18,
-  borderWidth: 1,
-  borderColor: '#dbe4ea',
-  minHeight: 95,
-  width: '100%',
-},
-
-infoUltimo: {
-  flex: 1,
-  alignItems: 'center',
-  justifyContent: 'center',
-},
-
-botaoSairMini: {
-  backgroundColor: '#c62828',
-  paddingHorizontal: 22,
-  paddingVertical: 14,
-  borderRadius: 14,
-  justifyContent: 'center',
-  alignItems: 'center',
-  minWidth: 90,
-},
-
-botaoSairMiniTexto: {
-  color: '#fff',
-  fontWeight: 'bold',
-},
-
-dashboardCardAlerta: {
-  backgroundColor: '#f59e0b',
-  width: '48%',
-  borderRadius: 14,
-  padding: 16,
-  alignItems: 'center',
-},
-
-dashboardCardErro: {
-  backgroundColor: '#b42318',
-  width: '48%',
-  borderRadius: 14,
-  padding: 16,
-  alignItems: 'center',
-},
-
-ultimoAtendimentoCard: {
-  backgroundColor: '#fff',
-  width: '48%',
-  minHeight: 90,
-  borderRadius: 14,
-  padding: 16,
-  marginBottom: 18,
-  borderWidth: 1,
-  borderColor: '#dbe4ea',
-  alignItems: 'center',
-  justifyContent: 'center',
-},
-
-ultimoAtendimentoIcone: {
-  fontSize: 22,
-  marginBottom: 4,
-},
-
-ultimoAtendimentoTitulo: {
-  fontSize: 12,
-  color: '#64748b',
-  fontWeight: '800',
-  textAlign: 'center',
-},
-
-ultimoAtendimentoTexto: {
-  fontSize: 18,
-  color: '#123c69',
-  fontWeight: '900',
-  textAlign: 'center',
-},
-
-dashboardCard: {
-  backgroundColor: '#1f3f70',
-  width: '48%',
-  borderRadius: 14,
-  padding: 16,
-  alignItems: 'center',
-  marginBottom: 10,
-},
-
-dashboardNumero: {
-  color: '#fff',
-  fontSize: 28,
-  fontWeight: '900',
-},
-
-dashboardTexto: {
-  color: '#dbeafe',
-  marginTop: 6,
-  fontWeight: '700',
-},
-
-logoPdf: {
-  width: 280,
-  height: 180,
-  resizeMode: 'contain',
-  alignSelf: 'center',
-  marginBottom: 10,
-},
-
-  flex: { flex: 1 },
-  safe: { flex: 1, backgroundColor: '#eef2f7' },
-  container: { padding: 16, paddingBottom: 40 },
-  header: {
-    backgroundColor: '#ffffff',
-    borderRadius: 22,
-    paddingVertical: 10,
-    paddingHorizontal: 12,
-    marginBottom: 10,
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#dbe4ea',
-    elevation: 4,
-},
-    
-pickerContainer: {
-  backgroundColor: '#fff',
-  borderRadius: 14,
-  borderWidth: 1,
-  borderColor: '#dbe4ea',
-  marginBottom: 16,
-  overflow: 'hidden',
-},
-
-abaNaoIniciado: {
-  backgroundColor: '#dc2626',
-},
-
-abaPendente: {
-  backgroundColor: '#fef3c7',
-},
-
-abaConcluido: {
-  backgroundColor: '#dcfce7',
-},
-
-abaTextoNaoIniciado: {
-  color: '#fff',
-},
-
-  logo: { width: 140, height: 60, resizeMode: 'contain', marginBottom: 10 },
-  titulo: { fontSize: 25, color: '#14532d', fontWeight: '900', textAlign: 'center' },
-  subtitulo: { fontSize: 16, color: '#334155', marginTop: 6, textAlign: 'center', fontWeight: '700' },
-  equipamento: { fontSize: 14, color: '#475569', marginTop: 8, textAlign: 'center', fontWeight: '600' },
-  botaoConfig: { backgroundColor: '#f59e0b', borderRadius: 14, padding: 13, alignItems: 'center', marginBottom: 14 },
-  botaoConfigTexto: { color: '#111827', fontWeight: '900' },
-  botaoHistorico: { backgroundColor: '#334155', borderRadius: 14, padding: 13, alignItems: 'center', marginBottom: 14 },
-  cardResumo: { flexDirection: 'row', backgroundColor: '#fff', borderRadius: 16, padding: 12, marginBottom: 14, elevation: 2 },
-  resumoBox: { flex: 1, alignItems: 'center' },
-  resumoNumero: { fontSize: 24, fontWeight: '900', color: '#123c69' },
-  resumoTexto: { fontSize: 12, color: '#586273', marginTop: 3 },
-  card: { backgroundColor: '#fff', borderRadius: 16, padding: 14, marginBottom: 14, elevation: 2 },
-  secaoTitulo: { fontSize: 18, fontWeight: '900', color: '#123c69', marginBottom: 12 },
-  campoBox: { marginBottom: 10 },
-  label: { fontSize: 13, color: '#4b5563', marginBottom: 5, fontWeight: '800' },
-  input: { borderWidth: 1, borderColor: '#d1d5db', borderRadius: 10, padding: 11, fontSize: 15, backgroundColor: '#f9fafb' },
-  abasEquipamentos: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 10 },
-  abaEquipamento: { backgroundColor: '#e5e7eb', borderRadius: 12, paddingVertical: 10, paddingHorizontal: 12 },
-  abaAtiva: { borderWidth: 2, borderColor: '#123c69' },
-  abaTexto: { color: '#111827', fontWeight: '800' },
-  abaTextoAtivo: { color: '#fff' },
-  tiposContainer: { flexDirection: 'row', gap: 8, paddingBottom: 4 },
-  tipoBotao: { backgroundColor: '#e2e8f0', paddingVertical: 10, paddingHorizontal: 14, borderRadius: 12, marginRight: 8 },
-  tipoBotaoAtivo: { backgroundColor: '#14532d' },
-  tipoBotaoTexto: { color: '#1e293b', fontWeight: '800' },
-  tipoBotaoTextoAtivo: { color: '#fff' },
-  botaoPrincipal: { backgroundColor: '#123c69', borderRadius: 12, padding: 13, alignItems: 'center', marginTop: 10 },
-  botaoPrincipalTexto: { color: '#fff', fontWeight: '900' },
-  configItem: { borderWidth: 1, borderColor: '#e5e7eb', borderRadius: 12, padding: 12, marginBottom: 10, backgroundColor: '#fbfdff' },
-  itemBox: { borderWidth: 1, borderColor: '#e5e7eb', borderRadius: 12, padding: 12, marginBottom: 10, backgroundColor: '#fbfdff' },
-  itemTexto: { fontSize: 15, color: '#111827', fontWeight: '800', marginBottom: 10 },
-  historicoCard: { borderWidth: 1, borderColor: '#d1d5db', borderRadius: 14, padding: 12, marginBottom: 12, backgroundColor: '#f8fafc' },
-  historicoTitulo: { fontSize: 17, fontWeight: '900', color: '#14532d', marginBottom: 8 },
-  historicoEquipamento: { color: '#334155', fontWeight: '700', marginTop: 4 },
-  botoesLinha: { flexDirection: 'row', gap: 8, flexWrap: 'wrap' },
-  botoesLinhaInferior: { flexDirection: 'row', gap: 8, flexWrap: 'wrap', marginTop: 10 },
-  botaoOpcao: { flex: 1, minWidth: 90, borderWidth: 1, borderColor: '#cbd5e1', borderRadius: 10, paddingVertical: 11, alignItems: 'center', backgroundColor: '#fff' },
-  botaoOkAtivo: { backgroundColor: '#12805c', borderColor: '#12805c' },
-  botaoNaoAtivo: { backgroundColor: '#b42318', borderColor: '#b42318' },
-  botaoOpcaoTexto: { fontWeight: '900', color: '#334155' },
-  botaoOpcaoTextoAtivo: { color: '#fff' },
-  botaoEditar: { backgroundColor: '#2563eb', borderRadius: 10, paddingVertical: 11, paddingHorizontal: 14, alignItems: 'center' },
-  botaoEditarTexto: { color: '#fff', fontWeight: '900' },
-  botaoRemover: { backgroundColor: '#b42318', borderRadius: 10, paddingVertical: 11, paddingHorizontal: 14, alignItems: 'center' },
-  botaoRemoverGrande: { backgroundColor: '#b42318', borderRadius: 12, padding: 13, alignItems: 'center', marginTop: 12 },
-  botaoRemoverTexto: { color: '#fff', fontWeight: '900' },
-  botaoOkPequeno: { backgroundColor: '#12805c', borderRadius: 10, padding: 12, marginTop: 8, alignItems: 'center' },
-  botaoPequenoTexto: { color: '#fff', fontWeight: '900' },
-  obsItem: { marginTop: 10, borderWidth: 1, borderColor: '#e5e7eb', borderRadius: 10, padding: 9, backgroundColor: '#fff' },
-  botaoFoto: { backgroundColor: '#123c69', paddingHorizontal: 12, paddingVertical: 11, borderRadius: 10, alignItems: 'center' },
-  botaoFotoTexto: { color: '#fff', fontWeight: '900' },
-  botaoFotoItem: { backgroundColor: '#0f766e', borderRadius: 10, padding: 11, alignItems: 'center', marginTop: 10 },
-  botaoFotoItemTexto: { color: '#fff', fontWeight: '900' },
-  fotoPreview: { width: '100%', height: 190, borderRadius: 12, marginTop: 12, backgroundColor: '#e5e7eb' },
-  fotoItem: { width: '100%', height: 180, borderRadius: 12, marginTop: 10, backgroundColor: '#e5e7eb' },
-  semFoto: { marginTop: 10, color: '#6b7280', fontStyle: 'italic' },
-  textArea: { minHeight: 120, borderWidth: 1, borderColor: '#d1d5db', borderRadius: 10, padding: 11, fontSize: 15, backgroundColor: '#f9fafb', textAlignVertical: 'top' },
-  assinaturaPreview: { width: '100%', height: 150, borderWidth: 1, borderColor: '#d1d5db', borderRadius: 12, backgroundColor: '#fff', resizeMode: 'contain' },
-  modalAssinatura: { flex: 1, backgroundColor: '#eef2f7', paddingHorizontal: 14, paddingBottom: 14, paddingTop: 45, },
-  modalTopo: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
-  modalTitulo: { fontSize: 22, fontWeight: '900', color: '#123c69' },
-  botaoFechar: { backgroundColor: '#b42318', paddingVertical: 10, paddingHorizontal: 14, borderRadius: 10 },
-  botaoFecharTexto: { color: '#fff', fontWeight: '900' },
-  assinaturaTelaCheia: { flex: 1, marginTop: 35, paddingTop: 15, minHeight: 430, backgroundColor: '#fff', borderRadius: 14, overflow: 'hidden', borderWidth: 1, borderColor: '#d1d5db' },
-  botoesAssinaturaModal: { flexDirection: 'row', gap: 10, marginTop: 12, marginBottom: 8 },
-  botaoLimparAssinatura: { flex: 1, backgroundColor: '#64748b', borderRadius: 14, padding: 16, alignItems: 'center' },
-  botaoSalvarAssinatura: { flex: 2, backgroundColor: '#12805c', borderRadius: 14, padding: 16, alignItems: 'center' },
-  botaoSecundario: { marginTop: 10, borderWidth: 1, borderColor: '#123c69', borderRadius: 10, padding: 12, alignItems: 'center' },
-  botaoSecundarioTexto: { color: '#123c69', fontWeight: '900' },
-  botaoFinalizar: { backgroundColor: '#123c69', borderRadius: 16, padding: 16, alignItems: 'center', marginTop: 4 },
-  botaoPdf: { backgroundColor: '#14532d', borderRadius: 16, padding: 16, alignItems: 'center', marginTop: 10 },
-  botaoEmail: { backgroundColor: '#2563eb', borderRadius: 16, padding: 16, alignItems: 'center', marginTop: 10 },
-  botaoFinalizarTexto: { color: '#fff', fontSize: 17, fontWeight: '900' },
-
-cardResumoPedido: {
-  backgroundColor: '#ffffff',
-  borderRadius: 16,
-  padding: 18,
-  marginTop: 16,
-  marginBottom: 20,
-  borderWidth: 1,
-  borderColor: '#d9e2ec',
-  shadowColor: '#000',
-  shadowOffset: { width: 0, height: 2 },
-  shadowOpacity: 0.12,
-  shadowRadius: 4,
-  elevation: 4,
-},
-
-resumoPedidoTitulo: {
-  fontSize: 22,
-  fontWeight: 'bold',
-  color: '#0b1f3a',
-  marginBottom: 12,
-},
-
-resumoPedidoLinha: {
-  fontSize: 16,
-  color: '#1f2933',
-  marginBottom: 8,
-  fontWeight: '600',
-},
-
-botaoMaps: {
-  backgroundColor: '#eaf2ff',
-  borderWidth: 1,
-  borderColor: '#1f3f6d',
-  borderRadius: 10,
-  paddingVertical: 16,
-  marginTop: 16,
-  alignItems: 'center',
-},
-
-botaoMapsTexto: {
-  color: '#1f3f6d',
-  fontSize: 15,
-  fontWeight: 'bold',
-},
-  
-});

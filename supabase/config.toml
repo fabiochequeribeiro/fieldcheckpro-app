@@ -1,0 +1,4 @@
+project_id = "qceafhvudijkqwspymyq"
+
+[functions.criar-usuario-empresa]
+verify_jwt = true

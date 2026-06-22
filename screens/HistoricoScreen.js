@@ -10,6 +10,8 @@ import {
 } from 'react-native';
 
 import { supabase } from '../supabase';
+import { obterEmpresaAtual } from '../utils/sessaoOperacional';
+
 
 export default function HistoricoScreen() {
 
@@ -24,6 +26,7 @@ export default function HistoricoScreen() {
       const { data, error } = await supabase
         .from('visitas')
         .select('*')
+        .eq('empresa', obterEmpresaAtual())
         .order('id', { ascending: false });
 
       if (error) {

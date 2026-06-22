@@ -12,6 +12,8 @@ import {
 } from 'react-native';
 
 import { supabase } from '../supabase';
+import { obterEmpresaAtual } from '../utils/sessaoOperacional';
+
 
 export default function ClientesScreen() {
 
@@ -20,7 +22,7 @@ export default function ClientesScreen() {
   const [nome, setNome] = useState('');
   const [email, setEmail] = useState('');
   const [cidade, setCidade] = useState('');
-  const [contato, setcontato] = useState('');
+  const [contato, setContato] = useState('');
   const [telefone, setTelefone] = useState('');
 
   useEffect(() => {
@@ -32,6 +34,7 @@ export default function ClientesScreen() {
     const { data, error } = await supabase
       .from('clientes')
       .select('*')
+      .eq('empresa', obterEmpresaAtual())
       .order('id', { ascending: false });
 
     if (error) {
@@ -58,6 +61,7 @@ export default function ClientesScreen() {
           cidade,
           contato,
           telefone,
+          empresa: obterEmpresaAtual(),
         }
       ]);
 
@@ -66,20 +70,7 @@ export default function ClientesScreen() {
       Alert.alert('Erro', 'Não foi possível salvar o cliente.');
       return;
     }
-
-      Alert.alert('Sucesso', 'Cliente salvo com sucesso!');
-
-         setNome('');
-         setEmail('');
-         setTelefone('');
-         setCidade('');
-         setContato('');
-
-         carregarClientes();
-
-   
-
-    Alert.alert('Sucesso', 'Cliente salvo');
+Alert.alert('Sucesso', 'Cliente salvo');
 
     setNome('');
     setEmail('');
@@ -136,7 +127,7 @@ export default function ClientesScreen() {
           placeholder="Contato"
           placeholderTextColor="#666"
           value={contato}
-          onChangeText={setcontato}
+          onChangeText={setContato}
         />
 
         <TouchableOpacity

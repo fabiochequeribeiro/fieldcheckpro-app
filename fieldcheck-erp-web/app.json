@@ -1,0 +1,19 @@
+{
+  "expo": {
+    "extra": {
+      "eas": {
+        "projectId": "d2bd1842-cee3-4e9c-8959-82d054670504"
+      }
+    },
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/d2bd1842-cee3-4e9c-8959-82d054670504"
+    },
+    "android": {
+      "package": "com.fabio.fieldcheckerp"
+    },
+    "ios": {}
+  }
+}

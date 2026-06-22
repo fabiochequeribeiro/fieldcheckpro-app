@@ -1,27 +1,42 @@
 {
   "expo": {
-    "name": "BRS Equipamentos",
-    "slug": "checklist-elevador",
-    "version": "1.0.0",
+    "name": "FieldCheck Pro",
+    "slug": "fieldcheck-pro",
+    "version": "1.0.6",
     "orientation": "portrait",
-    "icon": "./assets/brs-icon.png",
+    "icon": "./assets/fieldcheck-icon.png",
     "userInterfaceStyle": "light",
     "newArchEnabled": true,
     "splash": {
-    "image": "./assets/logo.png",
-    "resizeMode": "contain",
-    "backgroundColor": "#ffffff"
-  },
+      "image": "./assets/fieldcheck-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#ffffff"
+    },
     "ios": {
       "supportsTablet": true
     },
     "android": {
       "adaptiveIcon": {
-        "foregroundImage": "./assets/brs-icon.png",
+        "foregroundImage": "./assets/fieldcheck-icon.png",
         "backgroundColor": "#ffffff"
       },
       "edgeToEdgeEnabled": true,
-      "package": "com.fabiocheque.checklistelevador"
+      "package": "com.fabio.fieldcheckpro",
+      "versionCode": 7,
+      "permissions": [
+        "android.permission.INTERNET",
+        "android.permission.CAMERA",
+        "android.permission.READ_MEDIA_IMAGES",
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.VIBRATE",
+        "android.permission.ACCESS_COARSE_LOCATION",
+        "android.permission.ACCESS_FINE_LOCATION"
+      ],
+      "blockedPermissions": [
+        "android.permission.RECORD_AUDIO",
+        "android.permission.SYSTEM_ALERT_WINDOW",
+        "android.permission.WRITE_EXTERNAL_STORAGE"
+      ]
     },
     "web": {
       "favicon": "./assets/favicon.png"
@@ -29,18 +44,22 @@
     "plugins": [
       "expo-mail-composer",
       "expo-asset",
-      "expo-font"
+      "expo-font",
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "O FieldCheck Pro usa sua localização somente para registrar o início e o envio do serviço técnico."
+        }
+      ]
     ],
     "extra": {
       "eas": {
-        "projectId": "c230fd59-9bad-4e47-99a4-571153804e71"
+        "projectId": "9f9d2bba-df8e-4880-8690-4b8d2395b5ef"
       }
     },
-    "runtimeVersion": {
-      "policy": "appVersion"
-    },
-    "updates": {
-      "url": "https://u.expo.dev/c230fd59-9bad-4e47-99a4-571153804e71"
-    }
+    "owner": "fabiocheque",
+    "scheme": "fieldcheckpro",
+    "description": "Aplicativo profissional para checklists, visitas técnicas, ocorrências e levantamentos de peças em campo.",
+    "privacy": "unlisted"
   }
 }

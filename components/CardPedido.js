@@ -33,7 +33,7 @@ export default function CardPedido({
         onPress={onIniciar}
       >
         <Text style={styles.botaoPrincipalTexto}>
-          Iniciar Entrega Técnica
+          Iniciar Serviço Técnico
         </Text>
       </TouchableOpacity>
 
@@ -42,7 +42,7 @@ export default function CardPedido({
         onPress={onAbrirMaps}
       >
         <Text style={styles.botaoMapsTexto}>
-          📍 Navegar até o cliente
+          �x� Navegar até o cliente
         </Text>
       </TouchableOpacity>
     </View>

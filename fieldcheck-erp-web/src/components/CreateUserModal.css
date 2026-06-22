@@ -1,0 +1,14 @@
+.create-user-modal { width: min(560px, 100%); }
+.create-user-modal .modal-header > div { display: grid; gap: 4px; }
+.create-user-modal .modal-header p { margin: 0; color: #667085; font-size: 13px; }
+.create-user-form { display: grid; gap: 16px; padding: 20px; }
+.password-field { display: grid; grid-template-columns: minmax(0, 1fr) 42px 42px; }
+.password-field input { border-radius: 6px 0 0 6px; }
+.field-icon { border: 1px solid #ccd3dc; border-left: 0; background: #f8fafc; color: #475467; display: grid; place-items: center; }
+.field-icon:last-child { border-radius: 0 6px 6px 0; }
+.create-user-form label small { color: #667085; font-weight: 500; }
+.create-user-form label small.valid { color: #087f3a; }
+.generate-password { width: fit-content; border: 0; background: transparent; color: #1f66b2; display: inline-flex; align-items: center; gap: 7px; padding: 0; font-weight: 750; }
+.temporary-password-note { display: grid; gap: 4px; padding: 12px 14px; border-left: 4px solid #f59e0b; background: #fff8e8; color: #694700; font-size: 13px; }
+.temporary-password-note span { line-height: 1.4; }
+@media (max-width: 600px) { .create-user-form { padding: 16px; } .create-user-form .form-actions { flex-direction: column-reverse; } .create-user-form .form-actions button { width: 100%; } }
