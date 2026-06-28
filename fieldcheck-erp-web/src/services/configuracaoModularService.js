@@ -1,22 +1,34 @@
 import { supabase } from '../supabase';
-import { normalizarConfiguracaoModular } from '../../../shared/modulosFieldCheck';
+import { normalizarConfiguracaoModular } from '../shared/modulosFieldCheck';
 
-export async function carregarConfiguracaoModularPortal(empresa) {
-  const empresaNormalizada = String(empresa || '').trim();
-  if (!empresaNormalizada) return normalizarConfiguracaoModular();
+function normalizarEntradaEmpresa(entrada) {
+  if (typeof entrada === 'object' && entrada !== null) {
+    return {
+      empresaId: entrada.empresaId || entrada.empresa_id || '',
+      empresa: String(entrada.empresa || '').trim(),
+    };
+  }
+  return { empresaId: '', empresa: String(entrada || '').trim() };
+}
 
-  const { data, error } = await supabase
+export async function carregarConfiguracaoModularPortal(entrada) {
+  const { empresaId, empresa } = normalizarEntradaEmpresa(entrada);
+  if (!empresaId && !empresa) return normalizarConfiguracaoModular();
+
+  let query = supabase
     .from('empresas_configuracoes')
     .select('setor,modulos_ativos,rotulos,permissoes,recursos,ativo')
-    .eq('empresa', empresaNormalizada)
-    .eq('ativo', true)
-    .maybeSingle();
+    .eq('ativo', true);
+
+  query = empresaId ? query.eq('empresa_id', empresaId) : query.eq('empresa', empresa);
+  const { data, error } = await query.maybeSingle();
 
   if (error) return normalizarConfiguracaoModular();
   return normalizarConfiguracaoModular({ ...(data || {}), origem: data ? 'supabase' : 'padrao_local' });
 }
 
-export async function salvarConfiguracaoModularPortal(empresa, configuracao) {
+export async function salvarConfiguracaoModularPortal(entrada, configuracao) {
+  const { empresaId, empresa } = normalizarEntradaEmpresa(entrada);
   const payload = normalizarConfiguracaoModular(configuracao);
   const dados = {
     setor: payload.setor,
@@ -27,7 +39,7 @@ export async function salvarConfiguracaoModularPortal(empresa, configuracao) {
   };
   const { data, error } = await supabase
     .from('empresas_configuracoes')
-    .upsert({ empresa: String(empresa || '').trim(), ...dados, ativo: true, atualizado_em: new Date().toISOString() }, { onConflict: 'empresa' })
+    .upsert({ empresa, empresa_id: empresaId || null, ...dados, ativo: true, atualizado_em: new Date().toISOString() }, { onConflict: empresaId ? 'empresa_id' : 'empresa' })
     .select('setor,modulos_ativos,rotulos,permissoes,recursos,ativo')
     .single();
   if (error) throw error;

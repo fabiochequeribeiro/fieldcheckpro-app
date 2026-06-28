@@ -5,7 +5,7 @@ import {
   MODULOS,
   PRESETS_SETORES,
   normalizarConfiguracaoModular,
-} from '../../../../shared/modulosFieldCheck';
+} from '../../shared/modulosFieldCheck';
 
 export default function ConfigurationModule({ configuracao, loading, onSave }) {
   const [form, setForm] = useState(() => normalizarConfiguracaoModular(configuracao));

@@ -1,0 +1,32 @@
+FIELD CHECK PRO PORTAL V2 - FIELD CHECK HUB
+
+O que foi alterado:
+- Identidade do portal atualizada para FieldCheck Hub / Portal Corporativo.
+- Título do navegador alterado para FieldCheck Pro | Portal Corporativo.
+- Tela de login com texto institucional do Portal Corporativo.
+- Menu lateral atualizado para FieldCheck Hub.
+- Topbar atualizada com empresa ativa.
+- Super Admin reforçado como centro de comando da plataforma SaaS.
+- Nova área no menu: IA Assistente.
+- Nova tela IA Assistente com orientações para sugestões de checklist, resumo inteligente e uso seguro.
+- package.json renomeado para fieldcheck-pro-portal.
+
+Validação feita:
+- npm run build executado com sucesso.
+
+Como aplicar:
+1. Faça backup da pasta atual fieldcheck-erp-web.
+2. Extraia este ZIP.
+3. Copie os arquivos por cima da pasta atual fieldcheck-erp-web.
+4. Rode:
+   npm install
+   npm run dev
+5. Para publicar:
+   git add .
+   git commit -m "Atualiza portal para FieldCheck Hub"
+   git push origin main
+
+Observação:
+- Não alterei banco, Supabase, login ou regras de permissão.
+- Não coloquei chave de IA no portal.
+- A IA continua preparada de forma segura para futura integração via backend/Supabase Edge Function.
