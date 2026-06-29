@@ -6,9 +6,15 @@ import {
   ClipboardList,
   FileClock,
   HelpCircle,
+  Bell,
+  Bot,
+  Boxes,
+  BriefcaseBusiness,
+  ChartNoAxesCombined,
   LayoutDashboard,
   LogOut,
   Menu,
+  Network,
   RefreshCw,
   ShieldCheck,
   Settings2,
@@ -34,8 +40,16 @@ import AuditModule from './modules/audit/AuditModule';
 import HelpModule from './modules/help/HelpModule';
 import SuperAdminModule from './modules/superadmin/SuperAdminModule';
 import AiAssistantModule from './modules/ai/AiAssistantModule';
+import CommandCenterModule from './modules/command/CommandCenterModule';
+import CompaniesModule from './modules/companies/CompaniesModule';
+import LicensesModule from './modules/licenses/LicensesModule';
+import ClientsModule from './modules/clients/ClientsModule';
+import EquipmentModule from './modules/equipment/EquipmentModule';
+import ReportsModule from './modules/reports/ReportsModule';
+import NotificationsModule from './modules/notifications/NotificationsModule';
 import { normalizeStatus } from './shared/status';
 import { generateChecklistModelSuggestions } from './services/aiChecklistService';
+import { applyFieldCheckHubTheme } from './theme/fieldCheckHubTheme';
 
 const EMPTY_ORDER = {
   id: null,
@@ -66,8 +80,9 @@ function normalizarTag(value) {
 }
 
 function Login({ loading, error, onSubmit }) {
-  const [email, setEmail] = useState('');
+  const [email, setEmail] = useState(() => localStorage.getItem('fieldcheck-hub-email') || '');
   const [password, setPassword] = useState('');
+  const [remember, setRemember] = useState(() => Boolean(localStorage.getItem('fieldcheck-hub-email')));
 
   return (
     <main className="login-page">
@@ -75,12 +90,14 @@ function Login({ loading, error, onSubmit }) {
         <img src="/logo.png" className="login-logo" alt="FieldCheck Pro" />
         <div>
           <span className="eyebrow">FieldCheck Hub</span>
-          <h1>Portal Corporativo</h1>
+          <h1>Bem-vindo ao FieldCheck Hub</h1>
           <p>Gestão inteligente das empresas, equipes, módulos, checklists e operações em campo.</p>
         </div>
         <form
           onSubmit={(event) => {
             event.preventDefault();
+            if (remember) localStorage.setItem('fieldcheck-hub-email', email.trim().toLowerCase());
+            else localStorage.removeItem('fieldcheck-hub-email');
             onSubmit(email, password);
           }}
         >
@@ -91,6 +108,10 @@ function Login({ loading, error, onSubmit }) {
           <label>
             Senha
             <input type="password" value={password} onChange={(event) => setPassword(event.target.value)} required />
+          </label>
+          <label className="remember-row">
+            <input type="checkbox" checked={remember} onChange={(event) => setRemember(event.target.checked)} />
+            Lembrar meu e-mail neste dispositivo
           </label>
           {error ? <div className="form-error">{error}</div> : null}
           <button className="primary-button" type="submit" disabled={loading}>
@@ -123,7 +144,7 @@ export default function App() {
   const [profile, setProfile] = useState(null);
   const [authLoading, setAuthLoading] = useState(true);
   const [authError, setAuthError] = useState('');
-  const [activeView, setActiveView] = useState('dashboard');
+  const [activeView, setActiveView] = useState('command');
   const [menuOpen, setMenuOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState('');
@@ -137,6 +158,7 @@ export default function App() {
   const [platformModules, setPlatformModules] = useState([]);
   const [selectedCompanyId, setSelectedCompanyId] = useState('');
   const [selectedVisit, setSelectedVisit] = useState(null);
+  const [actionVisitId, setActionVisitId] = useState('');
   const [audit, setAudit] = useState([]);
   const [orderModal, setOrderModal] = useState(false);
   const [orderForm, setOrderForm] = useState(EMPTY_ORDER);
@@ -153,6 +175,11 @@ export default function App() {
   const activeCompanyId = isSuperAdmin ? selectedCompanyId : companyId;
   const activeCompany = isSuperAdmin ? companies.find((item) => item.id === selectedCompanyId) : null;
   const activeCompanyName = activeCompany?.nome || company;
+
+  useEffect(() => {
+    document.title = 'FieldCheck Hub | Centro Inteligente de Operacoes';
+    applyFieldCheckHubTheme();
+  }, []);
 
   useEffect(() => {
     let mounted = true;
@@ -583,28 +610,92 @@ export default function App() {
   }
 
   async function approveVisit(visit) {
-    const { error } = await supabase.from('visitas').update({
+    if (!visit?.id) {
+      setMessage('Não foi possível aprovar: visita sem ID no portal.');
+      return;
+    }
+
+    setActionVisitId(visit.id);
+    setLoading(true);
+    setMessage('Aprovando serviço...');
+
+    const payload = {
       status: 'aprovado',
       finalizado: true,
       aprovado_em: new Date().toISOString(),
       aprovado_por: session.user.id,
-    }).eq('id', visit.id);
-    setMessage(error ? error.message : 'Serviço aprovado e bloqueado.');
-    if (!error) { setSelectedVisit(null); await loadData(); }
+    };
+
+    const { data, error } = await supabase
+      .from('visitas')
+      .update(payload)
+      .eq('id', visit.id)
+      .select('id,status,finalizado,aprovado_em,aprovado_por')
+      .maybeSingle();
+
+    setActionVisitId('');
+    setLoading(false);
+
+    if (error) {
+      setMessage(`Falha ao aprovar: ${error.message}`);
+      return;
+    }
+
+    if (!data) {
+      setMessage('A aprovação não foi aplicada. Verifique se seu usuário tem permissão/RLS para atualizar esta visita ou se a empresa selecionada está correta.');
+      return;
+    }
+
+    setVisits((current) => current.map((item) => String(item.id) === String(visit.id) ? { ...item, ...payload } : item));
+    setSelectedVisit(null);
+    setMessage('Serviço aprovado e bloqueado.');
+    await loadData();
   }
 
   async function reopenVisit(visit) {
     const reason = window.prompt('Informe a justificativa obrigatória para reabrir este serviço:');
     if (!reason?.trim()) return;
-    const { error } = await supabase.from('visitas').update({
+    if (!visit?.id) {
+      setMessage('Não foi possível reabrir: visita sem ID no portal.');
+      return;
+    }
+
+    setActionVisitId(visit.id);
+    setLoading(true);
+    setMessage('Reabrindo serviço...');
+
+    const payload = {
       status: 'reaberto',
       finalizado: false,
       reaberto_em: new Date().toISOString(),
       reaberto_por: session.user.id,
       motivo_reabertura: reason.trim(),
-    }).eq('id', visit.id);
-    setMessage(error ? error.message : 'Serviço reaberto com justificativa registrada.');
-    if (!error) { setSelectedVisit(null); await loadData(); }
+    };
+
+    const { data, error } = await supabase
+      .from('visitas')
+      .update(payload)
+      .eq('id', visit.id)
+      .select('id,status,finalizado,reaberto_em,reaberto_por,motivo_reabertura')
+      .maybeSingle();
+
+    setActionVisitId('');
+    setLoading(false);
+
+    if (error) {
+      setMessage(`Falha ao reabrir: ${error.message}`);
+      return;
+    }
+
+    if (!data) {
+      setMessage('A reabertura não foi aplicada. Verifique permissão/RLS para atualizar esta visita.');
+      return;
+    }
+
+    setVisits((current) => current.map((item) => String(item.id) === String(visit.id) ? { ...item, ...payload } : item));
+    setSelectedVisit(null);
+    setMessage('Serviço reaberto com justificativa registrada.');
+    await loadData();
   }
 
   if (authLoading) return <div className="center-state"><RefreshCw className="spin" /> Verificando acesso...</div>;
@@ -621,25 +712,32 @@ export default function App() {
     );
   }
 
-  const supervisorViews = new Set(['dashboard', 'orders', 'approvals', 'audit', 'help']);
+  const supervisorViews = new Set(['command', 'dashboard', 'orders', 'clients', 'equipment', 'reports', 'notifications', 'approvals', 'audit', 'ai', 'help']);
   const navItems = [
+    ['command', 'Command Center', Network, null],
     ['dashboard', rotuloModulo(configuracaoModular, MODULOS.DASHBOARD), LayoutDashboard, MODULOS.DASHBOARD],
     ['orders', rotuloModulo(configuracaoModular, MODULOS.ORDENS), ClipboardList, MODULOS.ORDENS],
+    ['clients', 'Clientes', BriefcaseBusiness, null],
+    ['equipment', 'Equipamentos', Boxes, null],
     ['models', rotuloModulo(configuracaoModular, MODULOS.CHECKLISTS), ClipboardCheck, MODULOS.CHECKLISTS],
     ['technicians', rotuloModulo(configuracaoModular, MODULOS.EQUIPE), Users, MODULOS.EQUIPE],
+    ['reports', 'Relatorios', ChartNoAxesCombined, null],
+    ['notifications', 'Notificacoes', Bell, null],
     ['approvals', rotuloModulo(configuracaoModular, MODULOS.APROVACOES), CheckCircle2, MODULOS.APROVACOES],
     ['audit', rotuloModulo(configuracaoModular, MODULOS.AUDITORIA), FileClock, MODULOS.AUDITORIA],
   ].filter(([id, , , modulo]) => currentRole !== 'supervisor' || supervisorViews.has(id))
     .filter(([, , , modulo]) => moduloEstaAtivo(configuracaoModular, modulo, currentRole));
   if (isSuperAdmin) navItems.unshift(['superadmin', 'Super Admin', Building2, null]);
-  navItems.push(['ai', 'IA Assistente', ShieldCheck, null]);
+  if (['super_admin', 'admin_empresa', 'administrador'].includes(currentRole)) navItems.push(['companies', 'Empresas', Building2, null]);
+  if (['super_admin', 'admin_empresa', 'administrador'].includes(currentRole)) navItems.push(['licenses', 'Licencas', ShieldCheck, null]);
+  navItems.push(['ai', 'IA Assistente', Bot, null]);
   navItems.push(['help', 'Ajuda', HelpCircle, null]);
   if (['super_admin', 'admin_empresa', 'administrador'].includes(currentRole)) navItems.push(['configuration', 'Configuração', Settings2, null]);
 
   return (
     <div className="app-shell">
       <aside className={menuOpen ? 'sidebar open' : 'sidebar'}>
-        <div className="brand"><img src="/logo.png" alt="" /><div><strong>FieldCheck Hub</strong><span>Portal Corporativo</span></div></div>
+        <div className="brand"><img src="/logo.png" alt="" /><div><strong>FieldCheck Hub</strong><span>Centro Inteligente</span></div></div>
         <nav>
           {navItems.map(([id, label, Icon]) => (
             <button key={id} className={activeView === id ? 'active' : ''} onClick={() => { setActiveView(id); setMenuOpen(false); }}>
@@ -670,6 +768,19 @@ export default function App() {
 
         {message ? <div className="notice" onClick={() => setMessage('')}>{message}<X size={17} /></div> : null}
 
+        {activeView === 'command' ? (
+          <CommandCenterModule
+            orders={orders}
+            visits={visits}
+            occurrences={occurrences}
+            technicians={technicians}
+            companies={companies}
+            activeCompanyName={activeCompanyName}
+            pendingApprovals={pendingApprovals}
+            onOpenOrder={openOrder}
+          />
+        ) : null}
+
         {activeView === 'dashboard' ? (
           <DashboardModule
             activeOrders={activeOrders}
@@ -678,6 +789,7 @@ export default function App() {
             occurrences={occurrences}
             pendingApprovals={pendingApprovals}
             technicians={technicians}
+            companies={companies}
             onOpenOrder={openOrder}
           />
         ) : null}
@@ -698,6 +810,14 @@ export default function App() {
           <OrdersModule orders={filteredOrders} search={search} onSearch={setSearch} technicians={technicians} onNew={openNewOrder} onOpen={openOrder} />
         ) : null}
 
+        {activeView === 'clients' ? (
+          <ClientsModule orders={orders} visits={visits} occurrences={occurrences} />
+        ) : null}
+
+        {activeView === 'equipment' ? (
+          <EquipmentModule orders={orders} models={models} />
+        ) : null}
+
         {activeView === 'models' ? (
           <ModelsModule models={models} onNew={() => { setModelForm({ ...EMPTY_MODEL, itens: [{ ...EMPTY_MODEL.itens[0] }] }); setModelModal(true); }} />
         ) : null}
@@ -706,8 +826,16 @@ export default function App() {
           <TeamModule technicians={technicians} currentRole={currentRole} onNew={() => setUserModal(true)} onRoleChange={updateRole} />
         ) : null}
 
+        {activeView === 'reports' ? (
+          <ReportsModule visits={visits} orders={orders} pendingApprovals={pendingApprovals} />
+        ) : null}
+
+        {activeView === 'notifications' ? (
+          <NotificationsModule orders={orders} visits={visits} occurrences={occurrences} />
+        ) : null}
+
         {activeView === 'approvals' ? (
-          <ApprovalsModule visits={visits} onSelect={setSelectedVisit} onApprove={approveVisit} onReopen={reopenVisit} />
+          <ApprovalsModule visits={visits} onSelect={setSelectedVisit} onApprove={approveVisit} onReopen={reopenVisit} actionVisitId={actionVisitId} />
         ) : null}
 
         {activeView === 'audit' ? (
@@ -715,7 +843,15 @@ export default function App() {
         ) : null}
 
         {activeView === 'ai' ? (
-          <AiAssistantModule />
+          <AiAssistantModule companies={companies} orders={orders} visits={visits} technicians={technicians} occurrences={occurrences} />
+        ) : null}
+
+        {activeView === 'companies' ? (
+          <CompaniesModule companies={companies} technicians={technicians} orders={orders} />
+        ) : null}
+
+        {activeView === 'licenses' ? (
+          <LicensesModule companies={companies} technicians={technicians} />
         ) : null}
 
         {activeView === 'help' ? (

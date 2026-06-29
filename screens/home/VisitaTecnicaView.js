@@ -6,7 +6,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useHomeScreen } from './HomeScreenContext';
 import { usuarioPodeGerenciar } from '../../utils/sessaoOperacional';
 
-const LOGO_HISTORICO = require('../../assets/fieldcheck-icon.png');
+const LOGO_HISTORICO = require('../../assets/fieldcheckpro-icon.png');
 
 export default function VisitaTecnicaView() {
   const {
@@ -59,6 +59,15 @@ export default function VisitaTecnicaView() {
     indicadoresVisitaAtual,
     ultimoAtendimentoCliente,
     resumo,
+    resumoInteligente,
+    setResumoInteligente,
+    gerandoResumoInteligente,
+    gerarResumoInteligenteVisita,
+    salvarResumoInteligenteVisita,
+    sugestoesChecklistIA,
+    gerandoSugestoesChecklistIA,
+    perguntarFotoParaSugestaoChecklistIA,
+    aplicarSugestoesChecklistIA,
     dados,
     atualizarCampo,
     clienteSelecionado,
@@ -198,6 +207,38 @@ export default function VisitaTecnicaView() {
                 <TouchableOpacity style={styles.botaoPrincipal} onPress={adicionarItemVisita}>
                   <Text style={styles.botaoPrincipalTexto}>Adicionar item ao equipamento</Text>
                 </TouchableOpacity>
+              </Secao>
+            ) : null}
+
+            {podeAlterarEstrutura ? (
+              <Secao titulo="IA para sugestoes de checklist">
+                <Text style={styles.resumoInteligenteAjuda}>
+                  O assistente pergunta se existe foto do equipamento e sugere itens para este modulo. Se a IA nao estiver disponivel, o modo manual continua funcionando normalmente.
+                </Text>
+                <TouchableOpacity
+                  style={[styles.botaoIA, gerandoSugestoesChecklistIA ? styles.botaoDesabilitado : null]}
+                  onPress={() => perguntarFotoParaSugestaoChecklistIA('visita')}
+                  disabled={gerandoSugestoesChecklistIA}
+                >
+                  <Text style={styles.botaoFinalizarTexto}>
+                    {gerandoSugestoesChecklistIA ? 'Gerando sugestoes...' : 'Gerar sugestoes com IA'}
+                  </Text>
+                </TouchableOpacity>
+                {sugestoesChecklistIA?.length ? (
+                  <View style={styles.iaSugestoesLista}>
+                    {sugestoesChecklistIA.map((sugestao, index) => (
+                      <View key={`${sugestao.texto}-${index}`} style={styles.iaSugestaoItem}>
+                        <Text style={styles.iaSugestaoTitulo}>{sugestao.texto}</Text>
+                        <Text style={styles.iaSugestaoMeta}>
+                          {sugestao.categoria || 'Sugestao IA'} {sugestao.exige_foto ? '• pede foto' : ''} {sugestao.exige_observacao ? '• pede observacao' : ''}
+                        </Text>
+                      </View>
+                    ))}
+                    <TouchableOpacity style={styles.botaoSalvarResumoInteligente} onPress={() => aplicarSugestoesChecklistIA('visita')}>
+                      <Text style={styles.botaoFinalizarTexto}>Aplicar sugestoes ao checklist</Text>
+                    </TouchableOpacity>
+                  </View>
+                ) : null}
               </Secao>
             ) : null}
 
@@ -353,7 +394,7 @@ export default function VisitaTecnicaView() {
                   />
 
                   <Text style={styles.ultimoAtendimentoTitulo}>
-                    �altimo atendimento
+                    Último atendimento
                   </Text>
 
                   <Text style={styles.ultimoAtendimentoTexto}>
@@ -499,6 +540,32 @@ export default function VisitaTecnicaView() {
 
             <Secao titulo="Observações gerais da visita">
               <TextInput style={styles.textArea} placeholder="Digite observações gerais da visita." value={dados.observacoes} onChangeText={(v) => atualizarCampo('observacoes', v)} multiline />
+            </Secao>
+
+            <Secao titulo="Resumo Inteligente da Visita">
+              <Text style={styles.resumoInteligenteAjuda}>
+                Gere um texto profissional com base no checklist, pendencias, nao conformidades, observacoes e fotos registradas.
+              </Text>
+              <TouchableOpacity
+                style={[styles.botaoResumoInteligente, gerandoResumoInteligente ? styles.botaoDesabilitado : null]}
+                onPress={gerarResumoInteligenteVisita}
+                disabled={gerandoResumoInteligente}
+              >
+                <Text style={styles.botaoFinalizarTexto}>
+                  {gerandoResumoInteligente ? 'Gerando resumo inteligente...' : (resumoInteligente ? 'Gerar novamente' : 'Gerar resumo inteligente')}
+                </Text>
+              </TouchableOpacity>
+              <TextInput
+                style={styles.textAreaResumoInteligente}
+                placeholder="O resumo inteligente aparecera aqui e pode ser editado antes de salvar."
+                value={resumoInteligente}
+                onChangeText={setResumoInteligente}
+                multiline
+                textAlignVertical="top"
+              />
+              <TouchableOpacity style={styles.botaoSalvarResumoInteligente} onPress={salvarResumoInteligenteVisita}>
+                <Text style={styles.botaoFinalizarTexto}>Salvar resumo</Text>
+              </TouchableOpacity>
             </Secao>
 
             <Secao titulo="Assinatura do cliente / responsável">

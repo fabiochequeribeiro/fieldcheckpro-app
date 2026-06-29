@@ -14,6 +14,9 @@ import { useFocusEffect } from '@react-navigation/native';
 import { supabase } from '../supabase';
 import { abrirSuporteWhatsApp } from '../utils/suporteWhatsApp';
 import { MODULOS, moduloEstaAtivo } from '../shared/modulosFieldCheck';
+import { AiCard, AppButton, AppCard, MetricCard, SectionTitle, SyncStatusBadge } from '../components/fieldcheck/AppComponents';
+import { carregarControleBeta, solicitarProrrogacaoBeta } from '../services/BetaProgramService';
+import TrialStatusBanner from '../components/fieldcheck/TrialStatusBanner';
 
 function obterNomeTecnico(usuarioLogado) {
   return (
@@ -28,6 +31,13 @@ function obterPrimeiroNome(nome = '') {
   const texto = String(nome || '').trim();
   if (!texto) return 'Técnico';
   return texto.split(/\s+/)[0] || texto;
+}
+
+function saudacaoAtual() {
+  const hora = new Date().getHours();
+  if (hora < 12) return 'Bom dia';
+  if (hora < 18) return 'Boa tarde';
+  return 'Boa noite';
 }
 
 function formatarResumoAcesso(acesso) {
@@ -162,14 +172,15 @@ async function carregarIndicadoresHome({ empresa, tecnicoId, gestor }) {
   };
 }
 
-export default function MainScreen({ navigation, usuarioLogado, acessoComercial, configuracaoModular, onLogout, resumoHome = {} }) {
+export default function MainScreen({ navigation, usuarioLogado, acessoComercial, configuracaoModular, trialAccess, onLogout, resumoHome = {} }) {
   const nomeTecnico = obterPrimeiroNome(obterNomeTecnico(usuarioLogado));
   const resumoAcesso = formatarResumoAcesso(acessoComercial);
-  const papel = usuarioLogado?.tecnico?.papel || usuarioLogado?.papel || 'tecnico';
-  const gestor = papel === 'administrador' || papel === 'supervisor';
+  const papel = usuarioLogado?.tecnico?.perfil || usuarioLogado?.perfil || usuarioLogado?.tecnico?.papel || usuarioLogado?.papel || 'tecnico';
+  const gestor = ['super_admin', 'admin_empresa', 'administrador', 'supervisor'].includes(papel);
   const empresa = usuarioLogado?.tecnico?.empresa || usuarioLogado?.empresa || '';
   const tecnicoId = usuarioLogado?.tecnico?.id || usuarioLogado?.tecnico_id || null;
   const [resumoCalculado, setResumoCalculado] = useState(resumoHome || {});
+  const [betaProgram, setBetaProgram] = useState(null);
 
   const atualizarIndicadores = useCallback(async () => {
     try {
@@ -183,9 +194,19 @@ export default function MainScreen({ navigation, usuarioLogado, acessoComercial,
   useFocusEffect(
     useCallback(() => {
       atualizarIndicadores();
+      carregarControleBeta(usuarioLogado).then(setBetaProgram).catch(() => null);
       return undefined;
-    }, [atualizarIndicadores])
+    }, [atualizarIndicadores, usuarioLogado])
   );
+
+  async function pedirProrrogacaoHome() {
+    try {
+      await solicitarProrrogacaoBeta(usuarioLogado, 15);
+      abrirSuporteWhatsApp('Ola, solicitei prorrogacao do Programa Beta FieldCheck Pro por mais 15 dias.');
+    } catch (erro) {
+      console.log('Erro solicitando prorrogacao beta:', erro?.message || erro);
+    }
+  }
 
   const indicadores = [
     {
@@ -217,6 +238,10 @@ export default function MainScreen({ navigation, usuarioLogado, acessoComercial,
       fundo: '#f1e8fb',
     },
   ];
+  const totalPendencias = resumoCalculado?.pendentes ?? 0;
+  const totalAndamento = resumoCalculado?.andamento ?? 0;
+  const totalHoje = resumoCalculado?.concluidasHoje ?? 0;
+  const resumoMissao = `Hoje voce possui ${totalHoje} visita(s) concluidas, ${totalPendencias} pendencia(s) e ${totalAndamento} servico(s) em andamento.`;
 
   const acoesRapidasBase = [
     {
@@ -311,6 +336,75 @@ export default function MainScreen({ navigation, usuarioLogado, acessoComercial,
       fundo: '#eaf3ff',
     },
     {
+      titulo: 'Entrega Técnica',
+      descricao: 'Checklist por equipamento, assinatura, PDF e pendências.',
+      icone: 'construct',
+      rota: 'Serviços',
+      modulo: MODULOS.EXECUCAO_CAMPO,
+      params: { telaInicial: 'pedido', modulo: 'entrega-tecnica' },
+      cor: '#087f3a',
+      fundo: '#e7f7ee',
+    },
+    {
+      titulo: 'Manutenção Preventiva',
+      descricao: 'Periodicidade, próxima manutenção, fotos e histórico.',
+      icone: 'calendar',
+      rota: 'Serviços',
+      modulo: MODULOS.EXECUCAO_CAMPO,
+      params: { telaInicial: 'pedido', modulo: 'manutencao-preventiva' },
+      cor: '#1f7ae0',
+      fundo: '#eaf3ff',
+    },
+    {
+      titulo: 'Manutenção Corretiva',
+      descricao: 'Diagnóstico, peças, solução e ação corretiva.',
+      icone: 'build',
+      rota: 'Serviços',
+      modulo: MODULOS.EXECUCAO_CAMPO,
+      params: { telaInicial: 'pedido', modulo: 'manutencao-corretiva' },
+      cor: '#b45309',
+      fundo: '#fff7e6',
+    },
+    {
+      titulo: 'Auditorias',
+      descricao: 'Conformidade, evidências, pontuação e plano de ação.',
+      icone: 'shield-checkmark',
+      rota: 'Serviços',
+      modulo: MODULOS.EXECUCAO_CAMPO,
+      params: { telaInicial: 'pedido', modulo: 'auditorias' },
+      cor: '#7c3bbd',
+      fundo: '#f1e8fb',
+    },
+    {
+      titulo: 'Segurança do Trabalho',
+      descricao: 'EPI, riscos, gravidade, responsável, prazo e fotos.',
+      icone: 'warning',
+      rota: 'Serviços',
+      modulo: MODULOS.EXECUCAO_CAMPO,
+      params: { telaInicial: 'pedido', modulo: 'seguranca-do-trabalho' },
+      cor: '#b42318',
+      fundo: '#fff1f0',
+    },
+    {
+      titulo: 'Repositor',
+      descricao: 'Loja, setor, prateleira, validade, ruptura e foto.',
+      icone: 'storefront',
+      rota: 'Serviços',
+      modulo: MODULOS.EXECUCAO_CAMPO,
+      params: { telaInicial: 'pedido', modulo: 'repositor' },
+      cor: '#0f766e',
+      fundo: '#e6fffb',
+    },
+    {
+      titulo: 'IA Assistente',
+      descricao: 'Resumo inteligente, sugestão de checklist e pendências.',
+      icone: 'sparkles',
+      rota: 'IA',
+      modulo: null,
+      cor: '#7c3aed',
+      fundo: '#f3eafd',
+    },
+    {
       titulo: 'Assinatura',
       descricao: 'Ver teste grátis, plano e status de acesso.',
       icone: 'card',
@@ -322,7 +416,7 @@ export default function MainScreen({ navigation, usuarioLogado, acessoComercial,
   ];
 
   const atalhos = atalhosBase.filter(
-    (item) => moduloEstaAtivo(configuracaoModular, item.modulo, papel),
+    (item) => !item.modulo || moduloEstaAtivo(configuracaoModular, item.modulo, papel),
   );
 
   function navegar(item) {
@@ -330,6 +424,10 @@ export default function MainScreen({ navigation, usuarioLogado, acessoComercial,
       ...(item.params || {}),
       usuarioLogado,
     });
+  }
+
+  function falarComercial() {
+    abrirSuporteWhatsApp('Ola, quero receber uma proposta comercial do FieldCheck Pro.');
   }
 
   return (
@@ -376,8 +474,62 @@ export default function MainScreen({ navigation, usuarioLogado, acessoComercial,
         </View>
 
         <View style={styles.logoBlock}>
-          <Image source={require('../assets/fieldcheck-icon.png')} style={styles.logo} />
-          <Text style={styles.logoTitle}>Checklists, serviços e resultados</Text>
+          <Image source={require('../assets/fieldcheckpro-icon.png')} style={styles.logo} />
+          <Text style={styles.logoTitle}>Mission Control do técnico</Text>
+        </View>
+
+        <View style={styles.betaWrap}>
+          <TrialStatusBanner
+            trial={trialAccess || betaProgram}
+            onExtension={pedirProrrogacaoHome}
+            onWhatsApp={() => abrirSuporteWhatsApp('Ola, quero falar sobre meu periodo de teste do FieldCheck Pro.')}
+            onProposal={falarComercial}
+          />
+        </View>
+
+        <View style={styles.missionWrap}>
+          <AppCard style={styles.missionCard}>
+            <Text style={styles.missionEyebrow}>FieldCheck Pro</Text>
+            <Text style={styles.missionTitle}>{saudacaoAtual()}, {nomeTecnico}. Tudo pronto para o trabalho.</Text>
+            <Text style={styles.missionText}>{resumoMissao}</Text>
+            <View style={styles.missionMetaRow}>
+              <Text style={styles.missionCompany}>{empresa || 'Empresa não informada'}</Text>
+              <SyncStatusBadge status="sincronizado" />
+            </View>
+            <View style={styles.missionActions}>
+              <AppButton title="Continuar serviço" icon="play" onPress={() => navigation.navigate('Serviços', { telaInicial: 'historico', usuarioLogado })} />
+              <AppButton title="Iniciar nova visita" icon="add-circle" variant="secondary" onPress={() => navigation.navigate('Serviços', { telaInicial: 'pedido', usuarioLogado })} />
+            </View>
+          </AppCard>
+        </View>
+
+        <View style={styles.aiCommandWrap}>
+          <AiCard
+            title="Assistente FieldCheck"
+            description="Gerar resumo inteligente, sugerir checklist, revisar pendências e preparar relatório."
+            onPress={() => navigation.navigate('IA', { usuarioLogado })}
+          />
+          <View style={styles.syncRow}>
+            <SyncStatusBadge status="local" />
+            <SyncStatusBadge status="pendente" />
+          </View>
+          <View style={styles.aiActionRow}>
+            <AppButton title="Resumo IA" icon="document-text" variant="secondary" onPress={() => navigation.navigate('IA', { usuarioLogado })} />
+            <AppButton title="Sugerir checklist" icon="list-circle" variant="secondary" onPress={() => navigation.navigate('IA', { usuarioLogado })} />
+          </View>
+        </View>
+
+        <View style={styles.betaWrap}>
+          <AppCard style={styles.betaCard}>
+            <Text style={styles.betaEyebrow}>Programa Beta ativo</Text>
+            <Text style={styles.betaTitle}>{betaProgram?.days_remaining ?? '-'} dia(s) restantes</Text>
+            <Text style={styles.betaText}>Teste o FieldCheck Pro 2.0 com checklists, fotos, assinatura, PDF, offline e IA Assistente.</Text>
+            <View style={styles.betaActions}>
+              <AppButton title="Enviar feedback" icon="chatbox-ellipses" onPress={() => navigation.navigate('Feedback', { usuarioLogado })} />
+              <AppButton title="Solicitar prorrogação" icon="time" variant="secondary" onPress={pedirProrrogacaoHome} />
+              <AppButton title="Programa Beta" icon="flask" variant="secondary" onPress={() => navigation.navigate('Programa Beta', { usuarioLogado })} />
+            </View>
+          </AppCard>
         </View>
 
         <View style={styles.quickGrid}>
@@ -395,6 +547,15 @@ export default function MainScreen({ navigation, usuarioLogado, acessoComercial,
               <Text style={styles.quickDescription}>{item.descricao}</Text>
             </TouchableOpacity>
           ))}
+        </View>
+
+        <View style={styles.metricGrid}>
+          <MetricCard label="Visitas hoje" value={resumoCalculado?.concluidasHoje ?? 0} icon="calendar" tone="blue" />
+          <MetricCard label="Pendências" value={resumoCalculado?.pendentes ?? 0} icon="alert-circle" tone="amber" />
+        </View>
+        <View style={styles.metricGrid}>
+          <MetricCard label="Em andamento" value={resumoCalculado?.andamento ?? 0} icon="briefcase" tone="purple" />
+          <MetricCard label="Concluídos" value={resumoCalculado?.totalMes ?? 0} icon="checkmark-circle" tone="green" />
         </View>
 
         <View style={styles.indicadoresCard}>
@@ -539,6 +700,103 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     textAlign: 'center',
     marginTop: 5,
+  },
+  missionWrap: {
+    paddingHorizontal: 14,
+    marginBottom: 14,
+  },
+  missionCard: {
+    gap: 8,
+  },
+  missionEyebrow: {
+    color: '#087f3a',
+    fontSize: 12,
+    fontWeight: '900',
+    textTransform: 'uppercase',
+  },
+  missionTitle: {
+    color: '#111827',
+    fontSize: 22,
+    fontWeight: '900',
+    lineHeight: 28,
+  },
+  missionText: {
+    color: '#667085',
+    fontSize: 14,
+    fontWeight: '700',
+    lineHeight: 20,
+  },
+  missionMetaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 10,
+    flexWrap: 'wrap',
+    marginTop: 4,
+  },
+  missionCompany: {
+    color: '#123c69',
+    fontSize: 13,
+    fontWeight: '900',
+  },
+  missionActions: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginTop: 8,
+  },
+  aiCommandWrap: {
+    paddingHorizontal: 14,
+    marginBottom: 14,
+    gap: 10,
+  },
+  syncRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  aiActionRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  betaWrap: {
+    paddingHorizontal: 14,
+    marginBottom: 14,
+  },
+  betaCard: {
+    gap: 8,
+    borderColor: '#bfdbfe',
+    backgroundColor: '#f8fbff',
+  },
+  betaEyebrow: {
+    color: '#087f3a',
+    fontSize: 12,
+    fontWeight: '900',
+    textTransform: 'uppercase',
+  },
+  betaTitle: {
+    color: '#123c69',
+    fontSize: 20,
+    fontWeight: '900',
+  },
+  betaText: {
+    color: '#667085',
+    fontSize: 13,
+    fontWeight: '700',
+    lineHeight: 19,
+  },
+  betaActions: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginTop: 6,
+  },
+  metricGrid: {
+    flexDirection: 'row',
+    gap: 10,
+    paddingHorizontal: 14,
+    marginBottom: 10,
   },
   quickGrid: {
     flexDirection: 'row',

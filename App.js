@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { AppState } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { NavigationContainer } from '@react-navigation/native';
@@ -12,6 +13,13 @@ import OcorrenciasScreen from './screens/OcorrenciasScreen';
 import CadastroPedidoObraScreen from './screens/CadastroPedidoObraScreen';
 import LevantamentoPecasScreen from './screens/LevantamentoPecasScreen';
 import ModelosChecklistScreen from './screens/ModelosChecklistScreen';
+import AiAssistantScreen from './screens/AiAssistantScreen';
+import ProfileScreen from './screens/ProfileScreen';
+import BetaOnboardingScreen from './screens/BetaOnboardingScreen';
+import BetaProgramScreen from './screens/BetaProgramScreen';
+import FeedbackScreen from './screens/FeedbackScreen';
+import AppStatusScreen from './screens/AppStatusScreen';
+import BetaExpiredScreen from './screens/BetaExpiredScreen';
 import AppLoginScreen from './screens/AppLoginScreen';
 import AssinaturaScreen from './screens/AssinaturaScreen';
 import { supabase } from './supabase';
@@ -20,6 +28,8 @@ import { carregarConfiguracaoModular } from './services/configuracaoModularServi
 import { MODULOS, moduloEstaAtivo, normalizarConfiguracaoModular } from './shared/modulosFieldCheck';
 import { definirSessaoOperacional, limparSessaoOperacional } from './utils/sessaoOperacional';
 import { comTempoLimite } from './utils/tempoLimite';
+import { marcarOnboardingBetaVisto, onboardingBetaFoiVisto } from './services/BetaProgramService';
+import { getTrialStatus, isModuleEnabled } from './services/trialAccessService';
 
 const Tab = createBottomTabNavigator();
 const PERFIL_CACHE_PREFIX = '@fieldcheck_perfil_sessao_';
@@ -59,6 +69,9 @@ function AppContent() {
   const [carregandoSessao, setCarregandoSessao] = useState(true);
   const [usuarioLogado, setUsuarioLogado] = useState(null);
   const [acessoComercial, setAcessoComercial] = useState(null);
+  const [controleBeta, setControleBeta] = useState(null);
+  const [onboardingVerificado, setOnboardingVerificado] = useState(false);
+  const [onboardingVisto, setOnboardingVisto] = useState(true);
   const [configuracaoModular, setConfiguracaoModular] = useState(() => normalizarConfiguracaoModular());
 
   async function montarUsuarioLogado(user) {
@@ -69,7 +82,7 @@ function AppContent() {
       const resultado = await comTempoLimite(
         supabase
           .from('tecnicos')
-          .select('id,user_id,nome,email,empresa,papel,ativo')
+          .select('id,user_id,nome,email,empresa,empresa_id,papel,perfil,ativo,bloqueado')
           .eq('email', email)
           .eq('ativo', true)
           .maybeSingle(),
@@ -94,7 +107,9 @@ function AppContent() {
       ...user,
       nome: tecnico.nome,
       empresa: tecnico.empresa || 'Conta individual',
+      empresa_id: tecnico.empresa_id || null,
       papel: tecnico.papel || 'tecnico',
+      perfil: tecnico.perfil || tecnico.papel || 'tecnico',
       tecnico,
     };
     definirSessaoOperacional(usuario);
@@ -106,17 +121,20 @@ function AppContent() {
       limparSessaoOperacional();
       setUsuarioLogado(null);
       setAcessoComercial(null);
+      setControleBeta(null);
       setConfiguracaoModular(normalizarConfiguracaoModular());
       return null;
     }
     definirSessaoOperacional(usuarioBase);
     if (usuarioBase.tecnico) await salvarPerfilCache(usuarioBase, usuarioBase.tecnico);
-    const [acesso, modulos] = await Promise.all([
+    const [acesso, modulos, beta] = await Promise.all([
       verificarAcessoComercial(usuarioBase),
-      carregarConfiguracaoModular(usuarioBase?.tecnico?.empresa || usuarioBase?.empresa),
+      carregarConfiguracaoModular({ empresaId: usuarioBase?.tecnico?.empresa_id || usuarioBase?.empresa_id, empresa: usuarioBase?.tecnico?.empresa || usuarioBase?.empresa }),
+      getTrialStatus(usuarioBase),
     ]);
     const usuarioFinal = { ...usuarioBase, acessoComercial: acesso };
     setAcessoComercial(acesso);
+    setControleBeta(beta);
     setConfiguracaoModular(modulos);
     setUsuarioLogado(usuarioFinal);
     return usuarioFinal;
@@ -126,6 +144,13 @@ function AppContent() {
     if (!usuarioLogado) return null;
     return aplicarAcesso(usuarioLogado);
   }
+
+  useEffect(() => {
+    onboardingBetaFoiVisto()
+      .then((seen) => setOnboardingVisto(seen))
+      .catch(() => setOnboardingVisto(true))
+      .finally(() => setOnboardingVerificado(true));
+  }, []);
 
   useEffect(() => {
     let ativo = true;
@@ -157,6 +182,7 @@ function AppContent() {
         limparSessaoOperacional();
         setUsuarioLogado(null);
         setAcessoComercial(null);
+        setControleBeta(null);
         setConfiguracaoModular(normalizarConfiguracaoModular());
         setCarregandoSessao(false);
       }
@@ -168,6 +194,31 @@ function AppContent() {
     };
   }, []);
 
+  useEffect(() => {
+    if (!usuarioLogado) return undefined;
+    let ativo = true;
+
+    async function revalidarTrial() {
+      try {
+        const trial = await getTrialStatus(usuarioLogado);
+        if (ativo) setControleBeta(trial);
+      } catch (error) {
+        console.log('Nao foi possivel revalidar trial:', error?.message || error);
+      }
+    }
+
+    const subscription = AppState.addEventListener('change', (state) => {
+      if (state === 'active') revalidarTrial();
+    });
+    const interval = setInterval(revalidarTrial, 5 * 60 * 1000);
+
+    return () => {
+      ativo = false;
+      clearInterval(interval);
+      subscription?.remove?.();
+    };
+  }, [usuarioLogado]);
+
   async function sairDoAplicativo() {
     try {
       await supabase.auth.signOut();
@@ -177,10 +228,24 @@ function AppContent() {
     limparSessaoOperacional();
     setUsuarioLogado(null);
     setAcessoComercial(null);
+    setControleBeta(null);
     setConfiguracaoModular(normalizarConfiguracaoModular());
   }
 
-  if (carregandoSessao) return <AppLoginScreen modoCarregando />;
+  async function concluirOnboardingBeta() {
+    await marcarOnboardingBetaVisto();
+    setOnboardingVisto(true);
+  }
+
+  async function atualizarControleBeta() {
+    if (!usuarioLogado) return null;
+    const beta = await getTrialStatus(usuarioLogado);
+    setControleBeta(beta);
+    return beta;
+  }
+
+  if (!onboardingVerificado || carregandoSessao) return <AppLoginScreen modoCarregando />;
+  if (!onboardingVisto) return <BetaOnboardingScreen onFinish={concluirOnboardingBeta} />;
   if (!usuarioLogado) return <AppLoginScreen onLogin={aplicarAcesso} />;
   if (acessoComercial && !acessoComercial.liberado) {
     return (
@@ -193,11 +258,15 @@ function AppContent() {
       />
     );
   }
+  if (controleBeta?.blocks_app) {
+    return <BetaExpiredScreen usuarioLogado={usuarioLogado} beta={controleBeta} onLogout={sairDoAplicativo} onRefresh={atualizarControleBeta} />;
+  }
 
-  const papel = usuarioLogado?.tecnico?.papel || usuarioLogado?.papel || 'tecnico';
+  const papel = usuarioLogado?.tecnico?.perfil || usuarioLogado?.perfil || usuarioLogado?.tecnico?.papel || usuarioLogado?.papel || 'tecnico';
   const gestor = papel === 'administrador' || papel === 'supervisor';
-  const screenProps = { usuarioLogado, configuracaoModular };
-  const podeUsar = (modulo) => moduloEstaAtivo(configuracaoModular, modulo, papel);
+  const screenProps = { usuarioLogado, acessoComercial, configuracaoModular, trialAccess: controleBeta };
+  const hiddenTabOptions = { tabBarButton: () => null, tabBarItemStyle: { display: 'none' } };
+  const podeUsar = (modulo) => moduloEstaAtivo(configuracaoModular, modulo, papel) && isModuleEnabled(controleBeta, modulo);
 
   return (
     <NavigationContainer key={`navigation-${papel}`}>
@@ -207,10 +276,16 @@ function AppContent() {
           headerStyle: { backgroundColor: '#123c69' },
           headerTintColor: '#fff',
           tabBarStyle: {
-            backgroundColor: '#123c69',
-            height: 65 + insets.bottom,
+            backgroundColor: '#071d36',
+            borderTopWidth: 0,
+            height: 72 + insets.bottom,
             paddingBottom: Math.max(insets.bottom, 8),
             paddingTop: 8,
+            elevation: 10,
+            shadowColor: '#020617',
+            shadowOpacity: 0.18,
+            shadowRadius: 16,
+            shadowOffset: { width: 0, height: -6 },
           },
           tabBarActiveTintColor: '#fff',
           tabBarInactiveTintColor: '#c7d5e0',
@@ -225,7 +300,12 @@ function AppContent() {
               Ocorrências: 'warning',
               Clientes: 'people',
               Relatórios: 'time',
+              IA: 'sparkles',
               Assinatura: 'card',
+              Perfil: 'person-circle',
+              'Programa Beta': 'flask',
+              Feedback: 'chatbox-ellipses',
+              'Status do App': 'pulse',
             };
             return <Ionicons name={icons[route.name] || 'ellipse'} size={size} color={color} />;
           },
@@ -284,6 +364,26 @@ function AppContent() {
             {(props) => <HomeScreen {...props} {...screenProps} />}
           </Tab.Screen>
         ) : null}
+
+        <Tab.Screen name="IA" options={{ title: 'IA Assistente' }}>
+          {(props) => <AiAssistantScreen {...props} {...screenProps} />}
+        </Tab.Screen>
+
+        <Tab.Screen name="Perfil" options={{ title: 'Perfil' }}>
+          {(props) => <ProfileScreen {...props} {...screenProps} onLogout={sairDoAplicativo} />}
+        </Tab.Screen>
+
+        <Tab.Screen name="Programa Beta" options={{ title: 'Programa Beta', ...hiddenTabOptions }}>
+          {(props) => <BetaProgramScreen {...props} {...screenProps} />}
+        </Tab.Screen>
+
+        <Tab.Screen name="Feedback" options={{ title: 'Enviar Feedback', ...hiddenTabOptions }}>
+          {(props) => <FeedbackScreen {...props} {...screenProps} />}
+        </Tab.Screen>
+
+        <Tab.Screen name="Status do App" options={{ title: 'Status do App', ...hiddenTabOptions }}>
+          {(props) => <AppStatusScreen {...props} {...screenProps} />}
+        </Tab.Screen>
 
         {gestor && podeUsar(MODULOS.ASSINATURA) ? (
           <Tab.Screen name="Assinatura" options={{ title: 'Assinatura' }}>

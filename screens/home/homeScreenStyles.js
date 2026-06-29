@@ -415,6 +415,18 @@ export const styles = StyleSheet.create({
     botaoPdf: { backgroundColor: '#14532d', borderRadius: 16, padding: 16, alignItems: 'center', marginTop: 10 },
     botaoEmail: { backgroundColor: '#2563eb', borderRadius: 16, padding: 16, alignItems: 'center', marginTop: 10 },
     botaoFinalizarTexto: { color: '#fff', fontSize: 17, fontWeight: '900' },
+    botaoResumoInteligente: { backgroundColor: '#7c3aed', borderRadius: 16, padding: 16, alignItems: 'center', marginTop: 10 },
+    botaoIA: { backgroundColor: '#123c69', borderRadius: 16, padding: 16, alignItems: 'center', marginTop: 10 },
+    botaoSalvarResumoInteligente: { backgroundColor: '#0f766e', borderRadius: 16, padding: 16, alignItems: 'center', marginTop: 10 },
+    botaoDesabilitado: { opacity: 0.65 },
+    resumoInteligenteAjuda: { color: '#475569', fontSize: 13, fontWeight: '700', lineHeight: 19, marginBottom: 10 },
+    textAreaResumoInteligente: { minHeight: 150, borderWidth: 1, borderColor: '#c4b5fd', borderRadius: 10, padding: 11, fontSize: 15, backgroundColor: '#faf5ff', textAlignVertical: 'top', color: '#111827', marginTop: 10 },
+    iaBox: { marginTop: 14, marginBottom: 12, borderWidth: 1, borderColor: '#bfdbfe', borderRadius: 16, padding: 14, backgroundColor: '#f8fbff' },
+    iaBoxTitulo: { color: '#123c69', fontSize: 16, fontWeight: '900', marginBottom: 6 },
+    iaSugestoesLista: { marginTop: 12, gap: 8 },
+    iaSugestaoItem: { borderWidth: 1, borderColor: '#dbeafe', borderRadius: 12, padding: 12, backgroundColor: '#ffffff' },
+    iaSugestaoTitulo: { color: '#111827', fontSize: 14, fontWeight: '900', lineHeight: 20 },
+    iaSugestaoMeta: { color: '#0f766e', fontSize: 12, fontWeight: '800', marginTop: 5 },
 
     cardResumoPedido: {
       backgroundColor: '#ffffff',

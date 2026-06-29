@@ -2,13 +2,13 @@
   "expo": {
     "name": "FieldCheck Pro",
     "slug": "fieldcheck-pro",
-    "version": "1.0.6",
+    "version": "1.0.7",
     "orientation": "portrait",
-    "icon": "./assets/fieldcheck-icon.png",
+    "icon": "./assets/fieldcheckpro-icon.png",
     "userInterfaceStyle": "light",
     "newArchEnabled": true,
     "splash": {
-      "image": "./assets/fieldcheck-icon.png",
+      "image": "./assets/fieldcheckpro-icon.png",
       "resizeMode": "contain",
       "backgroundColor": "#ffffff"
     },
@@ -17,12 +17,12 @@
     },
     "android": {
       "adaptiveIcon": {
-        "foregroundImage": "./assets/fieldcheck-icon.png",
+        "foregroundImage": "./assets/fieldcheckpro-icon.png",
         "backgroundColor": "#ffffff"
       },
       "edgeToEdgeEnabled": true,
-      "package": "com.fabio.fieldcheckpro",
-      "versionCode": 7,
+      "package": "com.fieldcheckpro.app",
+      "versionCode": 8,
       "permissions": [
         "android.permission.INTERNET",
         "android.permission.CAMERA",
@@ -58,7 +58,7 @@
       }
     },
     "owner": "fabiocheque",
-    "scheme": "fieldcheckpro",
+    "scheme": "fieldcheck-pro",
     "description": "Aplicativo profissional para checklists, visitas técnicas, ocorrências e levantamentos de peças em campo.",
     "privacy": "unlisted"
   }

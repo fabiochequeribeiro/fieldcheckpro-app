@@ -16,6 +16,14 @@ import { MODELOS_INICIAIS } from '../data/modelosChecklistIniciais';
 import { gerarPdfVisita } from '../services/relatorioVisitaPdf';
 import { enviarMidiasVisita } from '../services/campoMidiaService';
 import { capturarLocalizacaoCampo } from '../services/campoLocalizacaoService';
+import {
+  buildChecklistSuggestionPayload,
+  buildVisitSummaryPayload,
+  generateChecklistSuggestions,
+  generateFallbackChecklistSuggestions,
+  generateFallbackSummary,
+  generateVisitSummary,
+} from '../services/visitSummaryService';
 import HistoricoVisitasView from './home/HistoricoVisitasView';
 import LoginTecnicoView from './home/LoginTecnicoView';
 import PedidosView from './home/PedidosView';
@@ -24,7 +32,7 @@ import BancoChecklistView from './home/BancoChecklistView';
 import VisitaTecnicaView from './home/VisitaTecnicaView';
 //import CardPedido from '../components/CardPedido';
 
-const LOGO_FIXO = require('../assets/fieldcheck-icon.png');
+const LOGO_FIXO = require('../assets/fieldcheckpro-icon.png');
 const STORAGE_MODELOS = '@fieldcheck_modelos_checklist';
 const STORAGE_VISITAS = '@fieldcheck_historico_servicos';
 const STORAGE_PEDIDOS_CACHE = '@fieldcheck_cache_pedidos';
@@ -201,6 +209,29 @@ async function carregarModeloGenericoAtribuido(modeloId) {
   }
 }
 
+async function carregarModeloGenericoPorTag(tag) {
+  const tagNormalizada = String(tag || '').trim().toUpperCase();
+  if (!tagNormalizada) return [];
+  try {
+    const { data: modelos, error: erroModelo } = await supabase
+      .from('modelos_checklist_genericos')
+      .select('id, tag')
+      .eq('empresa', obterEmpresaAtual())
+      .eq('ativo', true)
+      .ilike('tag', tagNormalizada)
+      .limit(1);
+    if (erroModelo) throw erroModelo;
+    const modeloId = modelos?.[0]?.id;
+    if (!modeloId) return [];
+    const itens = await carregarModeloGenericoAtribuido(modeloId);
+    if (itens?.length) await cachearChecklistLocal(tagNormalizada, itens);
+    return itens;
+  } catch (error) {
+    console.log('Erro ao carregar modelo generico por tag:', error);
+    return [];
+  }
+}
+
 function criarItem(item) {
   return {
     categoria:
@@ -242,6 +273,8 @@ async function carregarChecklistDoSupabase(tipo) {
     }
 
     if (!data || data.length === 0) {
+      const genericoPorTag = await carregarModeloGenericoPorTag(tag);
+      if (genericoPorTag?.length) return genericoPorTag;
       return await buscarChecklistLocal(tag);
     }
 
@@ -517,6 +550,11 @@ export default function HomeScreen({ route, usuarioLogado }) {
   }
   const [equipamentos, setEquipamentos] = useState([]);
   const [assinatura, setAssinatura] = useState(null);
+  const [resumoInteligente, setResumoInteligente] = useState('');
+  const [gerandoResumoInteligente, setGerandoResumoInteligente] = useState(false);
+  const [sugestoesChecklistIA, setSugestoesChecklistIA] = useState([]);
+  const [gerandoSugestoesChecklistIA, setGerandoSugestoesChecklistIA] = useState(false);
+  const [ultimaSugestaoChecklistIA, setUltimaSugestaoChecklistIA] = useState('');
   const [localizacaoInicio, setLocalizacaoInicio] = useState(null);
 
   useEffect(() => {
@@ -542,6 +580,189 @@ export default function HomeScreen({ route, usuarioLogado }) {
           i.nao !== true
       ).length,
     };
+  }
+
+  function montarVisitaParaResumoInteligente() {
+    return {
+      numeroPedido: numeroPedido || dados.numeroPedido || pedidoEncontrado?.numero_pedido || '',
+      numero_pedido: numeroPedido || dados.numeroPedido || pedidoEncontrado?.numero_pedido || '',
+      dados,
+      cliente: dados.cliente || pedidoEncontrado?.cliente || '',
+      cidade: dados.cidade || pedidoEncontrado?.cidade || '',
+      tecnico: dados.tecnico || usuario?.tecnico?.nome || usuario?.email || '',
+      data_visita: dados.data,
+      observacoes: dados.observacoes || '',
+      equipamentos,
+      resumo,
+    };
+  }
+
+  async function gerarResumoInteligenteVisita() {
+    if (gerandoResumoInteligente) return;
+
+    const visitaAtual = montarVisitaParaResumoInteligente();
+    const payload = buildVisitSummaryPayload(visitaAtual);
+
+    setGerandoResumoInteligente(true);
+    try {
+      const resumoGerado = await generateVisitSummary(payload);
+      setResumoInteligente(resumoGerado);
+    } catch (erro) {
+      console.log('Falha ao gerar resumo inteligente, usando fallback local:', erro?.message || erro);
+      setResumoInteligente(generateFallbackSummary(payload));
+      Alert.alert(
+        'Resumo gerado localmente',
+        'Nao foi possivel acessar a IA agora. Geramos um resumo padrao com os dados da visita, e voce pode editar antes de salvar.'
+      );
+    } finally {
+      setGerandoResumoInteligente(false);
+    }
+  }
+
+  async function salvarResumoInteligenteVisita() {
+    const resumoLimpo = String(resumoInteligente || '').trim();
+    setResumoInteligente(resumoLimpo);
+    await salvarVisitaLocal();
+    Alert.alert('Resumo salvo', 'O resumo inteligente foi salvo junto com a visita.');
+  }
+
+  function moduloAtualParaIA() {
+    const origem =
+      pedidoEncontrado?.modulo ||
+      pedidoEncontrado?.tipo_servico ||
+      pedidoEncontrado?.categoria ||
+      dados?.modulo ||
+      dados?.tipoServico ||
+      tipoBanco ||
+      'Formularios personalizados';
+
+    return String(origem || 'Formularios personalizados');
+  }
+
+  function equipamentoParaSugestaoIA() {
+    if (equipamentoAtual !== null && equipamentos[equipamentoAtual]) {
+      return equipamentos[equipamentoAtual];
+    }
+
+    return {
+      nome: tipoBanco,
+      tipo: tipoBanco,
+      tag: tipoBanco,
+      itens: (modelos[tipoBanco] || []).map((item) => criarItem(item)),
+    };
+  }
+
+  async function gerarSugestoesChecklistIA({ usarFoto = false, origem = 'visita' } = {}) {
+    if (gerandoSugestoesChecklistIA) return;
+
+    const equipamentoBase = equipamentoParaSugestaoIA();
+    const itensAtuais = origem === 'banco'
+      ? (modelos[tipoBanco] || []).map((item) => criarItem(item))
+      : (equipamentoBase.itens || []);
+
+    const payload = buildChecklistSuggestionPayload({
+      equipamento: equipamentoBase,
+      modulo: moduloAtualParaIA(),
+      itensAtuais,
+      possuiFoto: usarFoto || !!(equipamentoBase?.foto || equipamentoBase?.fotoBase64 || equipamentoBase?.foto_path),
+    });
+
+    setGerandoSugestoesChecklistIA(true);
+    setUltimaSugestaoChecklistIA(origem);
+    try {
+      const sugestoes = await generateChecklistSuggestions(payload);
+      setSugestoesChecklistIA(sugestoes);
+      if (!sugestoes.length) {
+        Alert.alert('Sem novas sugestoes', 'O assistente nao encontrou itens novos para adicionar. O cadastro manual continua disponivel.');
+      }
+    } catch (erro) {
+      console.log('Falha na IA de checklist, usando fallback local:', erro?.message || erro);
+      setSugestoesChecklistIA(generateFallbackChecklistSuggestions(payload));
+      Alert.alert('Sugestoes locais geradas', 'A IA online ainda nao esta configurada. Geramos sugestoes locais para voce revisar.');
+    } finally {
+      setGerandoSugestoesChecklistIA(false);
+    }
+  }
+
+  function perguntarFotoParaSugestaoChecklistIA(origem = 'visita') {
+    const equipamentoBase = equipamentoParaSugestaoIA();
+    const temFoto = !!(equipamentoBase?.foto || equipamentoBase?.fotoBase64 || equipamentoBase?.foto_path);
+
+    Alert.alert(
+      'IA para checklist',
+      temFoto
+        ? 'Este equipamento ja possui foto. Deseja usar esse contexto para melhorar as sugestoes?'
+        : 'Voce tem foto do equipamento? A foto ajuda a IA a sugerir itens mais completos, mas o modo manual continua funcionando.',
+      [
+        { text: 'Agora nao', style: 'cancel' },
+        { text: temFoto ? 'Gerar com foto' : 'Gerar sem foto', onPress: () => gerarSugestoesChecklistIA({ usarFoto: temFoto, origem }) },
+        ...(temFoto ? [] : [{
+          text: 'Adicionar foto primeiro',
+          onPress: async () => {
+            if (origem === 'visita' && equipamentoAtual !== null) {
+              await escolherFotoEquipamento();
+            }
+            setTimeout(() => gerarSugestoesChecklistIA({ usarFoto: true, origem }), 650);
+          },
+        }]),
+      ]
+    );
+  }
+
+  async function aplicarSugestoesChecklistIA(origem = ultimaSugestaoChecklistIA || 'visita') {
+    const sugestoes = (sugestoesChecklistIA || []).filter((item) => item?.texto);
+    if (!sugestoes.length) {
+      Alert.alert('Nenhuma sugestao', 'Gere sugestoes antes de aplicar.');
+      return;
+    }
+
+    if (origem === 'banco') {
+      const atuais = modelos[tipoBanco] || [];
+      const novosItens = sugestoes
+        .map((item) => item.texto)
+        .filter((textoItem) => !atuais.some((existente) => String(existente).trim().toLowerCase() === textoItem.trim().toLowerCase()));
+      if (!novosItens.length) {
+        Alert.alert('Nada novo para aplicar', 'As sugestoes ja existem no banco selecionado.');
+        return;
+      }
+      await salvarModelos({ ...modelos, [tipoBanco]: [...atuais, ...novosItens] });
+      setSugestoesChecklistIA([]);
+      Alert.alert('Sugestoes aplicadas', `${novosItens.length} item(ns) adicionados ao banco ${tipoBanco}.`);
+      return;
+    }
+
+    if (equipamentoAtual === null) {
+      Alert.alert('Selecione um equipamento', 'Abra um equipamento da visita para aplicar sugestoes da IA.');
+      return;
+    }
+
+    let equipamentosAtualizados = equipamentos;
+
+    setEquipamentos((atual) => {
+      const novo = [...atual];
+      const equipamentoSelecionado = novo[equipamentoAtual] || {};
+      const itensAtuais = equipamentoSelecionado.itens || [];
+      const novosItens = sugestoes
+        .filter((sugestao) => !itensAtuais.some((item) => String(item?.texto || '').trim().toLowerCase() === sugestao.texto.trim().toLowerCase()))
+        .map((sugestao) => ({
+          ...criarItem({ texto: sugestao.texto, categoria: sugestao.categoria || 'SUGESTAO IA' }),
+          exige_foto: sugestao.exige_foto === true,
+          exige_observacao: sugestao.exige_observacao === true,
+          origem: sugestao.origem || 'ia_assistida',
+        }));
+
+      novo[equipamentoAtual] = {
+        ...equipamentoSelecionado,
+        itens: [...itensAtuais, ...novosItens],
+      };
+
+      equipamentosAtualizados = novo;
+      return novo;
+    });
+
+    setSugestoesChecklistIA([]);
+    await salvarVisitaLocal({ equipamentosOverride: equipamentosAtualizados });
+    Alert.alert('Sugestoes aplicadas', 'Os itens foram adicionados ao checklist. Revise antes de finalizar.');
   }
 
   function montarRegistroParcial({
@@ -587,6 +808,8 @@ export default function HomeScreen({ route, usuarioLogado }) {
       data: dados.data,
       data_visita: dados.data,
       observacoes: dados.observacoes || '',
+      resumoInteligente,
+      resumo_inteligente: resumoInteligente,
 
       equipamentos: equipamentosCompletos,
       equipamentosSalvos: equipamentosSalvosOverride,
@@ -598,6 +821,8 @@ export default function HomeScreen({ route, usuarioLogado }) {
       localizacao_inicio: localizacaoInicio,
       inicio_em: localizacaoInicio?.capturado_em || null,
       resumo: resumoParcial,
+      resumoInteligente,
+      resumo_inteligente: resumoInteligente,
 
       total_ok: resumoParcial.ok,
       total_nao: resumoParcial.nao,
@@ -756,6 +981,7 @@ export default function HomeScreen({ route, usuarioLogado }) {
             equipamentos: registro.equipamentos,
             assinatura: registro.assinatura,
             resumo: registro.resumo,
+            resumo_inteligente: registro.resumoInteligente || registro.resumo_inteligente || '',
             empresa: obterEmpresaAtual(),
           })
           .eq('id', idVisita)
@@ -892,6 +1118,7 @@ export default function HomeScreen({ route, usuarioLogado }) {
     setEtapaVisita(visita.etapaVisita || 'resumo');
     setEquipamentosSalvos(visita.equipamentosSalvos || {});
     setAssinatura(visita.assinatura || null);
+    setResumoInteligente(visita.resumoInteligente || visita.resumo_inteligente || visita.dados?.resumoInteligente || '');
     setLocalizacaoInicio(visita.localizacao_inicio || null);
     setTela('visita');
   }
@@ -1028,6 +1255,7 @@ export default function HomeScreen({ route, usuarioLogado }) {
               setEtapaVisita('resumo');
               setEquipamentosSalvos({});
               setAssinatura(null);
+              setResumoInteligente('');
               setTela('detalhePedido');
             },
           },
@@ -1056,6 +1284,7 @@ export default function HomeScreen({ route, usuarioLogado }) {
     etapaVisita,
     equipamentosSalvos,
     assinatura,
+    resumoInteligente,
     tela,
   ]);
   const [listaClientes, setListaClientes] = useState([]);
@@ -1089,6 +1318,7 @@ export default function HomeScreen({ route, usuarioLogado }) {
     setEquipamentos([]);
     setEquipamentosSalvos({});
     setAssinatura(null);
+    setResumoInteligente('');
     setLocalizacaoInicio(null);
 
     setTimeout(() => {
@@ -1142,7 +1372,7 @@ export default function HomeScreen({ route, usuarioLogado }) {
       .limit(1);
 
     if (error) {
-      console.log('ERRO �aLTIMA VISITA CLIENTE:', error);
+      console.log('ERRO ULTIMA VISITA CLIENTE:', error);
       setUltimoAtendimentoCliente('Sem atendimento');
       return;
     }
@@ -1517,7 +1747,7 @@ export default function HomeScreen({ route, usuarioLogado }) {
         setEquipamentos([criarEquipamento(banco, 1, primeiroTipo)]);
       }
     } catch (erro) {
-      Alert.alert('Erro', 'Não foi possível carregar o Banco de Checklists FieldCheck.');
+      Alert.alert('Erro', 'Não foi possível carregar o Banco de Checklists FieldCheck Pro.');
     }
   }
 
@@ -1551,6 +1781,7 @@ export default function HomeScreen({ route, usuarioLogado }) {
       tecnico: visita.tecnico || '',
       data: visita.data_visita || visita.data || '',
       observacoes: visita.observacoes || '',
+      resumoInteligente: visita.resumoInteligente || visita.resumo_inteligente || '',
     };
 
     const equipamentosSeguros = Array.isArray(visita.equipamentos)
@@ -1565,6 +1796,8 @@ export default function HomeScreen({ route, usuarioLogado }) {
       dados: dadosSeguro,
       equipamentos: equipamentosSeguros,
       resumo: resumoSeguro,
+      resumoInteligente: visita.resumoInteligente || visita.resumo_inteligente || dadosSeguro.resumoInteligente || '',
+      resumo_inteligente: visita.resumo_inteligente || visita.resumoInteligente || dadosSeguro.resumoInteligente || '',
       total_ok: visita.total_ok ?? resumoSeguro.ok ?? 0,
       total_nao: visita.total_nao ?? resumoSeguro.nao ?? 0,
       total_pendentes: visita.total_pendentes ?? resumoSeguro.pendentes ?? 0,
@@ -1590,7 +1823,7 @@ export default function HomeScreen({ route, usuarioLogado }) {
         .order('created_at', { ascending: false });
 
       if (error) {
-        console.log('ERRO AO CARREGAR HIST�RICO:', error);
+        console.log('ERRO AO CARREGAR HISTORICO:', error);
         setHistorico((Array.isArray(historicoLocal) ? historicoLocal : []).map(normalizarVisitaHistorico));
         return;
       }
@@ -1775,7 +2008,7 @@ export default function HomeScreen({ route, usuarioLogado }) {
 
   function removerEquipamento() {
     if (equipamentos.length === 1) {
-      Alert.alert('Atenção', '�0 necessário manter pelo menos um equipamento.');
+      Alert.alert('Atenção', 'É necessário manter pelo menos um equipamento.');
       return;
     }
     setEquipamentos((atual) => atual.filter((_, i) => i !== equipamentoAtual));
@@ -1993,10 +2226,10 @@ export default function HomeScreen({ route, usuarioLogado }) {
 
   function removerTipoBanco() {
     if (Object.keys(modelos).length === 1) {
-      Alert.alert('Atenção', '�0 necessário manter pelo menos um tipo de equipamento.');
+      Alert.alert('Atenção', 'É necessário manter pelo menos um tipo de equipamento.');
       return;
     }
-    Alert.alert('Remover tipo', `Deseja remover ${tipoBanco} do Banco de Checklists FieldCheck?`, [
+    Alert.alert('Remover tipo', `Deseja remover ${tipoBanco} do Banco de Checklists FieldCheck Pro?`, [
       { text: 'Cancelar', style: 'cancel' },
       {
         text: 'Remover',
@@ -2013,7 +2246,7 @@ export default function HomeScreen({ route, usuarioLogado }) {
   }
 
   function restaurarBancoInicial() {
-    Alert.alert('Restaurar banco inicial', 'Isso vai voltar os modelos para o padrão inicial do FieldCheck. Deseja continuar?', [
+    Alert.alert('Restaurar banco inicial', 'Isso vai voltar os modelos para o padrão inicial do FieldCheck Pro. Deseja continuar?', [
       { text: 'Cancelar', style: 'cancel' },
       {
         text: 'Restaurar',
@@ -2061,6 +2294,8 @@ export default function HomeScreen({ route, usuarioLogado }) {
       tecnico: dados.tecnico,
       data: dados.data,
       observacoes: dados.observacoes,
+      resumoInteligente,
+      resumo_inteligente: resumoInteligente,
 
       equipamentos: equipamentosCompletos,
 
@@ -2071,6 +2306,8 @@ export default function HomeScreen({ route, usuarioLogado }) {
       inicio_em: localizacaoInicioFinal?.capturado_em || null,
       finalizado_em: new Date().toISOString(),
       resumo,
+      resumoInteligente,
+      resumo_inteligente: resumoInteligente,
       total_ok: resumo.ok,
       total_nao: resumo.nao,
       total_pendentes: resumo.pendentes,
@@ -2151,6 +2388,7 @@ export default function HomeScreen({ route, usuarioLogado }) {
         assinatura: null,
         assinatura_path: midiasRemotas.assinaturaPath,
         resumo,
+        resumo_inteligente: resumoInteligente,
       };
 
       const { data: visitaInserida, error: erroInserirVisita } = await supabase
@@ -2160,8 +2398,26 @@ export default function HomeScreen({ route, usuarioLogado }) {
         .single();
 
       if (erroInserirVisita) {
-        console.log('ERRO AO SALVAR VISITA BÁSICA:', erroInserirVisita);
-        await adicionarNaFilaSincronizacao(registro);
+        const mensagemErro = String(erroInserirVisita.message || '');
+
+        if (mensagemErro.includes('resumo_inteligente')) {
+          const { resumo_inteligente, ...visitaSemResumoInteligente } = visitaBasica;
+          const { error: erroRetryVisita } = await supabase
+            .from('visitas')
+            .insert([visitaSemResumoInteligente])
+            .select('id')
+            .single();
+
+          if (erroRetryVisita) {
+            console.log('ERRO AO SALVAR VISITA BASICA:', erroRetryVisita);
+            await adicionarNaFilaSincronizacao(registro);
+          } else {
+            console.log('Visita salva sem resumo_inteligente. Execute o SQL para habilitar a coluna no Supabase.');
+          }
+        } else {
+          console.log('ERRO AO SALVAR VISITA BASICA:', erroInserirVisita);
+          await adicionarNaFilaSincronizacao(registro);
+        }
       }
 
       console.log('Dados enviados para Supabase');
@@ -2202,7 +2458,7 @@ export default function HomeScreen({ route, usuarioLogado }) {
   function carregarVisitaNaTela(visitaOriginal, modo = 'continuar') {
     const visita = normalizarVisitaHistorico(visitaOriginal);
 
-    console.log('ABRINDO VISITA DO HIST�RICO:', visita);
+    console.log('ABRINDO VISITA DO HISTORICO:', visita);
     console.log('EQUIPAMENTOS DA VISITA:', visita.equipamentos);
     console.log('DADOS DA VISITA:', visita.dados);
 
@@ -2334,7 +2590,7 @@ export default function HomeScreen({ route, usuarioLogado }) {
     const senhaLimpa = String(senhaLogin || '').trim();
 
     if (!emailLimpo || !senhaLimpa) {
-      Alert.alert('Aten??o', 'Preencha e-mail e senha.');
+      Alert.alert('Atenção', 'Preencha e-mail e senha.');
       return;
     }
 
@@ -2345,7 +2601,7 @@ export default function HomeScreen({ route, usuarioLogado }) {
       });
 
       if (erroLogin || !sessao?.user) {
-        Alert.alert('Aten??o', 'E-mail ou senha inv?lidos.');
+        Alert.alert('Atenção', 'E-mail ou senha inválidos.');
         return;
       }
 
@@ -2353,7 +2609,7 @@ export default function HomeScreen({ route, usuarioLogado }) {
 
       if (!tecnico) {
         await supabase.auth.signOut();
-        Alert.alert('Aten??o', 'T?cnico inativo ou sem acesso a esta empresa.');
+        Alert.alert('Atenção', 'Técnico inativo ou sem acesso a esta empresa.');
         return;
       }
 
@@ -2382,7 +2638,7 @@ export default function HomeScreen({ route, usuarioLogado }) {
       setTela('pedido');
     } catch (erro) {
       console.log('Erro ao fazer login:', erro);
-      Alert.alert('Erro', erro?.message || 'N?o foi poss?vel fazer login.');
+      Alert.alert('Erro', erro?.message || 'Não foi possível fazer login.');
     }
   }
 
@@ -2419,6 +2675,7 @@ export default function HomeScreen({ route, usuarioLogado }) {
       numeroPedido,
       usuario,
       assinatura,
+      resumoInteligente,
       gerarNumeroEntrega,
     });
   }
@@ -2463,10 +2720,10 @@ export default function HomeScreen({ route, usuarioLogado }) {
 
           const icone =
             status === 'concluido'
-              ? '�S&'
+              ? 'OK'
               : salvoManual || status === 'pendente'
-                ? '�xx�'
-                : '�x�';
+                ? '...'
+                : '-';
 
           const textoStatus =
             status === 'concluido'
@@ -2635,6 +2892,15 @@ export default function HomeScreen({ route, usuarioLogado }) {
     indicadoresVisitaAtual,
     ultimoAtendimentoCliente,
     resumo,
+    resumoInteligente,
+    setResumoInteligente,
+    gerandoResumoInteligente,
+    gerarResumoInteligenteVisita,
+    salvarResumoInteligenteVisita,
+    sugestoesChecklistIA,
+    gerandoSugestoesChecklistIA,
+    perguntarFotoParaSugestaoChecklistIA,
+    aplicarSugestoesChecklistIA,
     dados,
     atualizarCampo,
     clienteSelecionado,

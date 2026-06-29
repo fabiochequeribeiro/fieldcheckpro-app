@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   ActivityIndicator,
   Alert,
@@ -17,12 +18,26 @@ import { supabase } from '../supabase';
 import { abrirSuporteWhatsApp } from '../utils/suporteWhatsApp';
 import { comTempoLimite, erroDeTempoLimite } from '../utils/tempoLimite';
 
-const LOGO = require('../assets/fieldcheck-icon.png');
+const LOGO = require('../assets/fieldcheckpro-icon.png');
+const STORAGE_EMAIL = '@fieldcheck_login_email';
 
 export default function AppLoginScreen({ onLogin, modoCarregando = false }) {
   const [email, setEmail] = useState('');
   const [senha, setSenha] = useState('');
   const [carregando, setCarregando] = useState(false);
+  const [lembrarUsuario, setLembrarUsuario] = useState(false);
+
+  useEffect(() => {
+    let ativo = true;
+    AsyncStorage.getItem(STORAGE_EMAIL)
+      .then((valor) => {
+        if (!ativo || !valor) return;
+        setEmail(valor);
+        setLembrarUsuario(true);
+      })
+      .catch(() => null);
+    return () => { ativo = false; };
+  }, []);
 
   async function entrar() {
     const emailLimpo = email.trim().toLowerCase();
@@ -35,6 +50,8 @@ export default function AppLoginScreen({ onLogin, modoCarregando = false }) {
 
     try {
       setCarregando(true);
+      if (lembrarUsuario) await AsyncStorage.setItem(STORAGE_EMAIL, emailLimpo);
+      else await AsyncStorage.removeItem(STORAGE_EMAIL);
 
       const { data: sessao, error: erroLogin } = await comTempoLimite(
         supabase.auth.signInWithPassword({ email: emailLimpo, password: senhaLimpa }),
@@ -50,7 +67,7 @@ export default function AppLoginScreen({ onLogin, modoCarregando = false }) {
       const { data: tecnico, error: erroTecnico } = await comTempoLimite(
         supabase
           .from('tecnicos')
-          .select('*')
+          .select('id,user_id,nome,email,empresa,empresa_id,papel,perfil,ativo,bloqueado')
           .eq('email', emailLimpo)
           .eq('ativo', true)
           .maybeSingle(),
@@ -70,6 +87,9 @@ export default function AppLoginScreen({ onLogin, modoCarregando = false }) {
         ...sessao.user,
         nome: tecnico.nome,
         empresa: tecnico.empresa || tecnico.cliente || 'Conta individual',
+        empresa_id: tecnico.empresa_id || null,
+        papel: tecnico.papel || 'tecnico',
+        perfil: tecnico.perfil || tecnico.papel || 'tecnico',
         tecnico,
       });
     } catch (erro) {
@@ -93,7 +113,7 @@ export default function AppLoginScreen({ onLogin, modoCarregando = false }) {
           <Image source={LOGO} style={styles.logo} />
 
           <Text style={styles.titulo}>FieldCheck Pro</Text>
-          <Text style={styles.subtitulo}>Acesse sua rotina de campo</Text>
+          <Text style={styles.subtitulo}>Gestão inteligente das operações em campo</Text>
 
           {modoCarregando ? (
             <View style={styles.carregandoBox}>
@@ -133,6 +153,19 @@ export default function AppLoginScreen({ onLogin, modoCarregando = false }) {
               </View>
 
               <TouchableOpacity
+                style={styles.lembrarLinha}
+                onPress={() => setLembrarUsuario((valor) => !valor)}
+                activeOpacity={0.85}
+              >
+                <Ionicons
+                  name={lembrarUsuario ? 'checkbox' : 'square-outline'}
+                  size={20}
+                  color={lembrarUsuario ? '#087f3a' : '#64748b'}
+                />
+                <Text style={styles.lembrarTexto}>Lembrar meu usuário neste aparelho</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
                 style={[styles.botao, carregando && styles.botaoDesabilitado]}
                 onPress={entrar}
                 disabled={carregando}
@@ -146,6 +179,14 @@ export default function AppLoginScreen({ onLogin, modoCarregando = false }) {
                 <Text style={styles.botaoTexto}>
                   {carregando ? 'Entrando...' : 'Entrar'}
                 </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.esqueciSenha}
+                onPress={() => Alert.alert('Recuperar senha', 'Fluxo preparado para integração futura com recuperação de senha do Supabase.')}
+                activeOpacity={0.85}
+              >
+                <Text style={styles.esqueciSenhaTexto}>Esqueci minha senha</Text>
               </TouchableOpacity>
 
               <TouchableOpacity
@@ -223,6 +264,17 @@ const styles = StyleSheet.create({
     color: '#111827',
     paddingVertical: 12,
   },
+  lembrarLinha: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 12,
+  },
+  lembrarTexto: {
+    color: '#475467',
+    fontSize: 13,
+    fontWeight: '800',
+  },
   botao: {
     minHeight: 54,
     backgroundColor: '#123c69',
@@ -241,6 +293,17 @@ const styles = StyleSheet.create({
     fontWeight: '900',
     fontSize: 17,
     textAlign: 'center',
+  },
+  esqueciSenha: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 42,
+    marginTop: 8,
+  },
+  esqueciSenhaTexto: {
+    color: '#123c69',
+    fontSize: 14,
+    fontWeight: '900',
   },
   botaoSuporte: {
     marginTop: 12,

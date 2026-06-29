@@ -33,7 +33,7 @@ async function lerMidiaBase64(referencia) {
   }
 }
 
-export async function montarHtmlPdfVisita({ logoBase64, equipamentosPdf = [], dados = {}, numeroPedido = '', usuario = null, assinatura = null, gerarNumeroEntrega }) {
+export async function montarHtmlPdfVisita({ logoBase64, equipamentosPdf = [], dados = {}, numeroPedido = '', usuario = null, assinatura = null, gerarNumeroEntrega, resumoInteligente = '' }) {
   const safe = (valor) =>
     String(valor ?? '')
       .replace(/&/g, '&amp;')
@@ -150,6 +150,13 @@ export async function montarHtmlPdfVisita({ logoBase64, equipamentosPdf = [], da
   const assinaturaHtml = assinatura
     ? `<img class="assinatura" src="${assinatura}" />`
     : '<p class="vazio">Sem assinatura registrada.</p>';
+
+  const resumoInteligenteTexto = String(
+    resumoInteligente ||
+    dados.resumoInteligente ||
+    dados.resumo_inteligente ||
+    ''
+  ).trim();
 
   const numeroEntrega = await gerarNumeroEntrega();
   const linkEntrega = `https://fieldcheckpro.app/entrega/${numeroEntrega}`;
@@ -385,6 +392,16 @@ export async function montarHtmlPdfVisita({ logoBase64, equipamentosPdf = [], da
             border: 1px solid #d1d5db;
             white-space: pre-wrap;
           }
+          .resumo-inteligente {
+            margin-top: 10px;
+            padding: 16px;
+            border-radius: 12px;
+            background: #faf5ff;
+            border: 1px solid #c4b5fd;
+            color: #1f2937;
+            line-height: 1.65;
+            white-space: pre-wrap;
+          }
           .alertaPdf {
             background: #fff7ed;
             border: 1px solid #fed7aa;
@@ -412,11 +429,11 @@ export async function montarHtmlPdfVisita({ logoBase64, equipamentosPdf = [], da
       <body>
         <div class="cabecalhoPremium">
           <img class="logoPremium" src="data:image/jpeg;base64,${logoBase64}" />
-          <div class="slogan">Soluções que geram produtividade no campo.</div>
+          <div class="slogan">Checklists, relatórios e gestão de campo em uma plataforma.</div>
           <div class="contatosFieldCheck">
-            <div>�x� Rua Ronald Tkotz, 3808 � Jardim Tarobá, Cambé - PR</div>
-            <div>��} (43) 3316-6045</div>
-            <div>�S0 suporte@fieldcheckpro.app</div>
+            <div>Suporte: WhatsApp (43) 98459-4216</div>
+            <div>E-mail: suporte@fieldcheckpro.app</div>
+            <div>Portal: fieldcheckpro.app</div>
           </div>
         </div>
 
@@ -452,6 +469,9 @@ export async function montarHtmlPdfVisita({ logoBase64, equipamentosPdf = [], da
             <div class="box"><div class="numero">${resumoPdf.pendentes}</div><div>Pendentes</div></div>
           </div>
 
+          <h2>Resumo Inteligente da Visita</h2>
+          <div class="resumo-inteligente">${safe(resumoInteligenteTexto || 'Resumo nao informado.')}</div>
+
           <h2>Equipamentos verificados</h2>
           ${equipamentosHtml}
 
@@ -462,7 +482,7 @@ export async function montarHtmlPdfVisita({ logoBase64, equipamentosPdf = [], da
           ${assinaturaHtml}
 
           <div class="rodape">
-            Documento gerado pelo aplicativo de checklist técnico da FieldCheck Pro.
+            Documento gerado pelo aplicativo de checklist técnico FieldCheck Pro.
           </div>
         </div>
       </body>
@@ -470,7 +490,7 @@ export async function montarHtmlPdfVisita({ logoBase64, equipamentosPdf = [], da
   `;
 }
 
-export async function gerarPdfVisita({ enviarEmail = false, equipamentos = [], dados = {}, pedidoEncontrado = null, logoModule, numeroPedido = '', usuario = null, assinatura = null, gerarNumeroEntrega }) {
+export async function gerarPdfVisita({ enviarEmail = false, equipamentos = [], dados = {}, pedidoEncontrado = null, logoModule, numeroPedido = '', usuario = null, assinatura = null, resumoInteligente = '', gerarNumeroEntrega }) {
   const equipamentosFonte = Array.isArray(equipamentos)
     ? equipamentos
     : [];
@@ -513,7 +533,7 @@ export async function gerarPdfVisita({ enviarEmail = false, equipamentos = [], d
       );
     }
 
-    const htmlPdf = await montarHtmlPdfVisita({ logoBase64, equipamentosPdf: equipamentosComFotosBase64, dados, numeroPedido, usuario, assinatura, gerarNumeroEntrega });
+    const htmlPdf = await montarHtmlPdfVisita({ logoBase64, equipamentosPdf: equipamentosComFotosBase64, dados, numeroPedido, usuario, assinatura, resumoInteligente, gerarNumeroEntrega });
 
     if (!htmlPdf || htmlPdf.trim().length < 500) {
       Alert.alert('Erro', 'O relatório ficou vazio antes de gerar o PDF.');
@@ -546,6 +566,11 @@ ${dados.empresa || 'FieldCheck Pro'}`,
     }
   } catch (error) {
     console.log('ERRO AO GERAR PDF:', error);
+    Alert.alert(
+      'PDF nao gerado',
+      'Nao foi possivel gerar o relatorio agora. Seus checklists, fotos e assinaturas continuam salvos. Tente novamente ou gere o PDF pelo historico.'
+    );
+    return;
     Alert.alert('Erro', 'Não foi possível gerar o PDF. Veja o console para mais detalhes.');
   }
 }

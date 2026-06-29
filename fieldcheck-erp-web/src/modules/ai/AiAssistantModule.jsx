@@ -1,4 +1,6 @@
-import { ClipboardCheck, FileText, ShieldCheck, WandSparkles } from 'lucide-react';
+import { Bot, Camera, ClipboardCheck, FileText, ListChecks, MessageSquare, ShieldCheck, TrendingUp, WandSparkles } from 'lucide-react';
+import { getAIServiceStatus } from '../../services/AIService';
+import { buildManagerAiInsights } from '../../services/RecommendationService';
 
 const AI_CARDS = [
   {
@@ -18,7 +20,18 @@ const AI_CARDS = [
   },
 ];
 
-export default function AiAssistantModule() {
+const AI_ENTERPRISE_CARDS = [
+  { icon: ListChecks, title: 'Pendencias', description: 'Sugestao de pendencias, responsaveis, prazos e plano de acao.' },
+  { icon: Camera, title: 'Analise de fotos', description: 'Placeholder seguro para leitura futura de evidencias visuais.' },
+  { icon: MessageSquare, title: 'Chat IA', description: 'Estrutura para perguntas operacionais por gestores e supervisores.' },
+  { icon: TrendingUp, title: 'Dashboard IA', description: 'Uso, sugestoes aceitas, tempo economizado e falhas por empresa.' },
+  { icon: Bot, title: 'Recomendacoes', description: 'Base para recomendar manutencoes, auditorias e proximas acoes.' },
+];
+
+export default function AiAssistantModule({ companies = [], orders = [], visits = [], technicians = [], occurrences = [] }) {
+  const status = getAIServiceStatus();
+  const insights = buildManagerAiInsights({ companies, orders, visits, technicians, occurrences });
+
   return (
     <section className="content ai-assistant-page">
       <div className="section-header ai-hero-card">
@@ -41,6 +54,57 @@ export default function AiAssistantModule() {
             <p>{description}</p>
           </article>
         ))}
+      </div>
+
+      <div className="ai-assistant-grid ai-enterprise-grid">
+        {AI_ENTERPRISE_CARDS.map(({ icon: Icon, title, description }) => (
+          <article key={title} className="ai-assistant-card">
+            <div className="ai-assistant-icon"><Icon size={22} /></div>
+            <h3>{title}</h3>
+            <p>{description}</p>
+          </article>
+        ))}
+      </div>
+
+      <div className="hub-panel">
+        <header className="hub-panel-header">
+          <div>
+            <h3>Dashboard IA para gestores</h3>
+            <p>Indicadores mockados prontos para IA real por empresa, módulo e período.</p>
+          </div>
+          <TrendingUp size={21} />
+        </header>
+        <div className="ai-kpi-grid">
+          {insights.map((item) => (
+            <article key={item.label} className={`ai-kpi-card ${item.tone}`}>
+              <strong>{item.value}</strong>
+              <span>{item.label}</span>
+            </article>
+          ))}
+        </div>
+      </div>
+
+      <div className="help-two-columns">
+        <article className="help-panel">
+          <span className="eyebrow">Pergunte ao FieldCheck</span>
+          <h3>Chat IA preparado</h3>
+          <p>
+            Exemplos: quantas visitas fizemos, quais equipamentos possuem mais falhas,
+            quem realizou mais atendimentos e quais clientes estao atrasados.
+          </p>
+          <div className="ai-helper-note">
+            Modo atual: {status.mode}. Backend recomendado: {status.recommendedBackend}. Chave de IA no portal: {status.apiKeyInPortal ? 'sim' : 'nao'}.
+          </div>
+        </article>
+
+        <article className="help-panel">
+          <span className="eyebrow">Timeline inteligente</span>
+          <h3>Historico preparado</h3>
+          <p>
+            Estrutura para consolidar visitas, alteracoes, auditorias, fotos, aprovacoes,
+            checklists, assinaturas e eventos em uma linha do tempo auditavel.
+          </p>
+        </article>
       </div>
 
       <div className="help-two-columns">

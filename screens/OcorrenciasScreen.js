@@ -310,7 +310,7 @@ function montarHtmlOcorrencia(ocorrencia) {
       <body>
         <div class="topo">
           <h1>Relatório de Ocorrência de Obra</h1>
-          <div class="sub">FieldCheck Pro ⬢ Gerado em ${formatarDataBr(new Date().toISOString())}</div>
+          <div class="sub">FieldCheck Pro - Gerado em ${formatarDataBr(new Date().toISOString())}</div>
         </div>
 
         <div class="grid">
@@ -756,7 +756,7 @@ export default function OcorrenciasScreen() {
           {ocorrenciasFiltradas.length === 0 ? (
             <View style={styles.cardVazio}>
               <Text style={styles.cardVazioTitulo}>Nenhuma ocorrência encontrada</Text>
-              <Text style={styles.cardVazioTexto}>Clique em �SNova ocorrência⬝ para registrar peça faltante, avaria ou solicitação para matriz.</Text>
+              <Text style={styles.cardVazioTexto}>Clique em "Nova ocorrência" para registrar peça faltante, avaria ou solicitação para matriz.</Text>
             </View>
           ) : (
             ocorrenciasFiltradas.map((item) => (

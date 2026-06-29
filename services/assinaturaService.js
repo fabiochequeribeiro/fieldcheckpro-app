@@ -164,7 +164,7 @@ export async function verificarAcessoComercial(usuarioLogado) {
 
 export async function abrirGerenciamentoAssinatura() {
   const url =
-    'https://play.google.com/store/account/subscriptions?package=com.fabio.fieldcheckpro';
+    'https://play.google.com/store/account/subscriptions?package=com.fieldcheckpro.app';
   const podeAbrir = await Linking.canOpenURL(url);
   if (podeAbrir) {
     await Linking.openURL(url);

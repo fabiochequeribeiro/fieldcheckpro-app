@@ -5,7 +5,7 @@ import SignatureScreen from 'react-native-signature-canvas';
 import { Ionicons } from '@expo/vector-icons';
 import { useHomeScreen } from './HomeScreenContext';
 
-const LOGO_HISTORICO = require('../../assets/fieldcheck-icon.png');
+const LOGO_HISTORICO = require('../../assets/fieldcheckpro-icon.png');
 
 export default function DetalhePedidoView() {
   const {
@@ -139,7 +139,7 @@ export default function DetalhePedidoView() {
             style={styles.botaoMaps}
             onPress={() => abrirMaps(pedidoEncontrado)}
           >
-            <Text style={styles.botaoMapsTexto}>�x� Navegar até o cliente</Text>
+            <Text style={styles.botaoMapsTexto}>Navegar até o cliente</Text>
           </TouchableOpacity>
 
           <TouchableOpacity

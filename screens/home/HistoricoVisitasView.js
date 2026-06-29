@@ -4,8 +4,16 @@ import { Picker } from '@react-native-picker/picker';
 import SignatureScreen from 'react-native-signature-canvas';
 import { Ionicons } from '@expo/vector-icons';
 import { useHomeScreen } from './HomeScreenContext';
+import { SectionTitle, TimelineCard } from '../../components/fieldcheck/AppComponents';
 
-const LOGO_HISTORICO = require('../../assets/fieldcheck-icon.png');
+const LOGO_HISTORICO = require('../../assets/fieldcheckpro-icon.png');
+
+function horarioHistorico(visita = {}) {
+  const valor = visita.finalizado_em || visita.enviado_em || visita.created_at || visita.data_visita || visita.data;
+  const data = new Date(valor);
+  if (Number.isNaN(data.getTime())) return 'Agora';
+  return data.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+}
 
 export default function HistoricoVisitasView() {
   const {
@@ -119,6 +127,19 @@ export default function HistoricoVisitasView() {
             value={buscaHistorico}
             onChangeText={setBuscaHistorico}
           />
+
+          <SectionTitle title="Timeline inteligente" subtitle="Eventos recentes salvos neste aparelho" />
+          {(historicoFiltrado || []).slice(0, 4).map((visita) => (
+            <TimelineCard
+              key={`timeline-${visita.id || visita.numero_pedido || visita.numero_os}`}
+              time={horarioHistorico(visita)}
+              title={visita.cliente || 'Cliente não informado'}
+              description={`Pedido ${visita.numero_pedido || '-'} · ${normalizarVisitaHistorico(visita).finalizado ? 'Relatório pronto' : 'Serviço em andamento'}`}
+              status={normalizarVisitaHistorico(visita).finalizado ? 'concluido' : 'em_andamento'}
+              icon={normalizarVisitaHistorico(visita).finalizado ? 'document-text' : 'construct'}
+              onPress={() => normalizarVisitaHistorico(visita).finalizado ? visualizarVisitaFinalizada(visita) : continuarVisita(visita)}
+            />
+          ))}
 
           <Secao titulo="Visitas salvas">
             {historico.length === 0 ? (

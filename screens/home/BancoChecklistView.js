@@ -5,7 +5,7 @@ import SignatureScreen from 'react-native-signature-canvas';
 import { Ionicons } from '@expo/vector-icons';
 import { useHomeScreen } from './HomeScreenContext';
 
-const LOGO_HISTORICO = require('../../assets/fieldcheck-icon.png');
+const LOGO_HISTORICO = require('../../assets/fieldcheckpro-icon.png');
 
 export default function BancoChecklistView() {
   const {
@@ -37,6 +37,10 @@ export default function BancoChecklistView() {
     tipoBanco,
     setTipoBanco,
     modelos,
+    sugestoesChecklistIA,
+    gerandoSugestoesChecklistIA,
+    perguntarFotoParaSugestaoChecklistIA,
+    aplicarSugestoesChecklistIA,
     novoTipo,
     setNovoTipo,
     adicionarTipoBanco,
@@ -143,6 +147,35 @@ export default function BancoChecklistView() {
             <TouchableOpacity style={styles.botaoPrincipal} onPress={adicionarItemBanco}>
               <Text style={styles.botaoPrincipalTexto}>Adicionar item padrão</Text>
             </TouchableOpacity>
+
+            <View style={styles.iaBox}>
+              <Text style={styles.iaBoxTitulo}>Assistente IA para cadastro de equipamento</Text>
+              <Text style={styles.resumoInteligenteAjuda}>
+                Gere sugestoes de checklist para este tipo de equipamento. Se houver foto, a IA usa esse contexto; se nao houver, ela cria uma base segura e voce continua podendo cadastrar manualmente.
+              </Text>
+              <TouchableOpacity
+                style={[styles.botaoIA, gerandoSugestoesChecklistIA ? styles.botaoDesabilitado : null]}
+                onPress={() => perguntarFotoParaSugestaoChecklistIA('banco')}
+                disabled={gerandoSugestoesChecklistIA}
+              >
+                <Text style={styles.botaoFinalizarTexto}>
+                  {gerandoSugestoesChecklistIA ? 'Gerando sugestoes...' : 'Gerar sugestoes para este equipamento'}
+                </Text>
+              </TouchableOpacity>
+              {sugestoesChecklistIA?.length ? (
+                <View style={styles.iaSugestoesLista}>
+                  {sugestoesChecklistIA.map((sugestao, sugestaoIndex) => (
+                    <View key={`${sugestao.texto}-${sugestaoIndex}`} style={styles.iaSugestaoItem}>
+                      <Text style={styles.iaSugestaoTitulo}>{sugestao.texto}</Text>
+                      <Text style={styles.iaSugestaoMeta}>{sugestao.categoria || 'Sugestao IA'}</Text>
+                    </View>
+                  ))}
+                  <TouchableOpacity style={styles.botaoSalvarResumoInteligente} onPress={() => aplicarSugestoesChecklistIA('banco')}>
+                    <Text style={styles.botaoFinalizarTexto}>Aplicar no banco de checklists</Text>
+                  </TouchableOpacity>
+                </View>
+              ) : null}
+            </View>
 
             {(modelos[tipoBanco] || []).map((item, index) => (
               <View key={`${item}-${index}`} style={styles.configItem}>

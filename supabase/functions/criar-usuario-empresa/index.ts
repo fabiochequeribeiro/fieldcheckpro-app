@@ -13,6 +13,10 @@ function resposta(body: Record<string, unknown>, status = 200) {
   });
 }
 
+function papelLegado(perfil: string) {
+  return perfil === 'admin_empresa' ? 'administrador' : perfil;
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
   if (req.method !== 'POST') return resposta({ error: 'Método não permitido.' }, 405);
@@ -40,11 +44,13 @@ Deno.serve(async (req) => {
 
     const { data: manager, error: managerError } = await adminClient
       .from('tecnicos')
-      .select('id,nome,email,empresa,papel,ativo')
+      .select('id,nome,email,empresa,empresa_id,papel,perfil,ativo')
       .eq('email', currentUser.email.trim().toLowerCase())
       .eq('ativo', true)
       .maybeSingle();
-    if (managerError || !manager || !['administrador', 'supervisor'].includes(manager.papel)) {
+
+    const managerRole = manager?.perfil || (manager?.papel === 'administrador' ? 'admin_empresa' : manager?.papel);
+    if (managerError || !manager || !['super_admin', 'admin_empresa'].includes(managerRole)) {
       return resposta({ error: 'Seu perfil não possui permissão para criar usuários.' }, 403);
     }
 
@@ -52,23 +58,33 @@ Deno.serve(async (req) => {
     const nome = String(body.nome || '').trim();
     const email = String(body.email || '').trim().toLowerCase();
     const senha = String(body.senha || '');
-    const papel = String(body.papel || 'tecnico').trim().toLowerCase();
+    const perfil = String(body.perfil || body.papel || 'tecnico').trim().toLowerCase();
+    const empresaIdSolicitada = String(body.empresa_id || '').trim() || null;
 
     if (nome.length < 2) return resposta({ error: 'Informe o nome completo.' }, 400);
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return resposta({ error: 'Informe um e-mail válido.' }, 400);
     if (senha.length < 8) return resposta({ error: 'A senha provisória deve ter pelo menos 8 caracteres.' }, 400);
-    if (!['tecnico', 'supervisor', 'administrador'].includes(papel)) return resposta({ error: 'Perfil inválido.' }, 400);
-    if (manager.papel !== 'administrador' && papel !== 'tecnico') {
-      return resposta({ error: 'Somente administradores podem criar gestores.' }, 403);
+    if (!['tecnico', 'supervisor', 'admin_empresa'].includes(perfil)) return resposta({ error: 'Perfil inválido.' }, 400);
+    const empresaIdFinal = managerRole === 'super_admin' ? empresaIdSolicitada : manager.empresa_id;
+    if (!empresaIdFinal) return resposta({ error: 'Selecione uma empresa antes de criar o usuário.' }, 400);
+
+    const { data: empresaDestino, error: empresaError } = await adminClient
+      .from('empresas')
+      .select('id,nome,status')
+      .eq('id', empresaIdFinal)
+      .maybeSingle();
+    if (empresaError || !empresaDestino) return resposta({ error: 'Empresa não encontrada.' }, 404);
+    if (['bloqueada', 'cancelada'].includes(empresaDestino.status)) {
+      return resposta({ error: 'Esta empresa está bloqueada para novos usuários.' }, 403);
     }
 
     const { data: existingProfile } = await adminClient
       .from('tecnicos')
-      .select('id,user_id,empresa')
+      .select('id,user_id,empresa,empresa_id')
       .eq('email', email)
       .maybeSingle();
     if (existingProfile?.user_id) return resposta({ error: 'Já existe um login vinculado a este e-mail.' }, 409);
-    if (existingProfile?.empresa && existingProfile.empresa.toLowerCase() !== manager.empresa.toLowerCase()) {
+    if (existingProfile?.empresa_id && existingProfile.empresa_id !== empresaIdFinal) {
       return resposta({ error: 'Este e-mail já pertence a outra empresa.' }, 409);
     }
 
@@ -76,7 +92,7 @@ Deno.serve(async (req) => {
       email,
       password: senha,
       email_confirm: true,
-      user_metadata: { nome, empresa: manager.empresa, papel },
+      user_metadata: { nome, empresa: empresaDestino.nome, empresa_id: empresaIdFinal, perfil },
     });
     if (createError || !created.user) {
       const mensagem = createError?.message?.toLowerCase().includes('already')
@@ -86,25 +102,22 @@ Deno.serve(async (req) => {
     }
 
     let profileError;
+    const profilePayload = {
+      user_id: created.user.id,
+      nome,
+      email,
+      empresa: empresaDestino.nome,
+      empresa_id: empresaIdFinal,
+      perfil,
+      papel: papelLegado(perfil),
+      ativo: true,
+      updated_at: new Date().toISOString(),
+    };
+
     if (existingProfile?.id) {
-      ({ error: profileError } = await adminClient.from('tecnicos').update({
-        user_id: created.user.id,
-        nome,
-        email,
-        empresa: manager.empresa,
-        papel,
-        ativo: true,
-        updated_at: new Date().toISOString(),
-      }).eq('id', existingProfile.id));
+      ({ error: profileError } = await adminClient.from('tecnicos').update(profilePayload).eq('id', existingProfile.id));
     } else {
-      ({ error: profileError } = await adminClient.from('tecnicos').insert({
-        user_id: created.user.id,
-        nome,
-        email,
-        empresa: manager.empresa,
-        papel,
-        ativo: true,
-      }));
+      ({ error: profileError } = await adminClient.from('tecnicos').insert(profilePayload));
     }
 
     if (profileError) {
@@ -114,7 +127,7 @@ Deno.serve(async (req) => {
 
     return resposta({
       success: true,
-      user: { id: created.user.id, nome, email, empresa: manager.empresa, papel, ativo: true },
+      user: { id: created.user.id, nome, email, empresa: empresaDestino.nome, empresa_id: empresaIdFinal, perfil, ativo: true },
     }, 201);
   } catch (error) {
     return resposta({ error: error instanceof Error ? error.message : 'Erro interno ao criar usuário.' }, 500);

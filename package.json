@@ -1,6 +1,6 @@
 {
-  "name": "fieldcheck-pro",
-  "version": "1.0.6",
+  "name": "fieldcheckpro",
+  "version": "1.0.7",
   "main": "index.js",
   "scripts": {
     "start": "expo start",
