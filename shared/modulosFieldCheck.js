@@ -12,6 +12,7 @@ export const MODULOS = {
   CONTROLE_PATRIMONIO: 'controle_patrimonio',
   FROTA: 'frota',
   FORMULARIOS_PERSONALIZADOS: 'formularios_personalizados',
+  COMERCIAL: 'comercial',
   ORDENS: 'ordens',
   EXECUCAO_CAMPO: 'execucao_campo',
   CHECKLISTS: 'checklists',
@@ -39,6 +40,7 @@ export const CATALOGO_MODULOS = {
   [MODULOS.CONTROLE_PATRIMONIO]: { nome: 'Controle de Patrimônio' },
   [MODULOS.FROTA]: { nome: 'Frota' },
   [MODULOS.FORMULARIOS_PERSONALIZADOS]: { nome: 'Formulários Personalizados' },
+  [MODULOS.COMERCIAL]: { nome: 'Comercial' },
   [MODULOS.ORDENS]: { nome: 'Ordens de serviço' },
   [MODULOS.EXECUCAO_CAMPO]: { nome: 'Serviços de campo', nucleo: true },
   [MODULOS.CHECKLISTS]: { nome: 'Modelos de checklist' },
@@ -55,6 +57,7 @@ export const CATALOGO_MODULOS = {
 const BASE_OPERACIONAL = [
   MODULOS.DASHBOARD,
   MODULOS.ENTREGA_TECNICA,
+  MODULOS.COMERCIAL,
   MODULOS.ORDENS,
   MODULOS.EXECUCAO_CAMPO,
   MODULOS.CHECKLISTS,
@@ -81,6 +84,7 @@ export const MODULOS_SAAS = [
   MODULOS.CONTROLE_PATRIMONIO,
   MODULOS.FROTA,
   MODULOS.FORMULARIOS_PERSONALIZADOS,
+  MODULOS.COMERCIAL,
 ];
 
 const LEGACY_MODULE_ALIASES = {
@@ -148,6 +152,7 @@ export const PRESETS_SETORES = {
 };
 
 const MODULOS_GESTAO = new Set([
+  MODULOS.COMERCIAL,
   MODULOS.ORDENS,
   MODULOS.CHECKLISTS,
   MODULOS.CLIENTES,

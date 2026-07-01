@@ -9,9 +9,12 @@ import { Ionicons } from '@expo/vector-icons';
 import HomeScreen from './screens/HomeScreen';
 import MainScreen from './screens/MainScreen';
 import ClientesScreen from './screens/ClientesScreen';
+import ComercialScreen from './screens/ComercialScreen';
 import OcorrenciasScreen from './screens/OcorrenciasScreen';
 import CadastroPedidoObraScreen from './screens/CadastroPedidoObraScreen';
 import LevantamentoPecasScreen from './screens/LevantamentoPecasScreen';
+import PreventiveMaintenanceScreen from './screens/PreventiveMaintenanceScreen';
+import EquipmentHistoryScreen from './screens/EquipmentHistoryScreen';
 import ModelosChecklistScreen from './screens/ModelosChecklistScreen';
 import AiAssistantScreen from './screens/AiAssistantScreen';
 import ProfileScreen from './screens/ProfileScreen';
@@ -263,7 +266,7 @@ function AppContent() {
   }
 
   const papel = usuarioLogado?.tecnico?.perfil || usuarioLogado?.perfil || usuarioLogado?.tecnico?.papel || usuarioLogado?.papel || 'tecnico';
-  const gestor = papel === 'administrador' || papel === 'supervisor';
+  const gestor = ['super_admin', 'admin_empresa', 'administrador', 'supervisor'].includes(papel);
   const screenProps = { usuarioLogado, acessoComercial, configuracaoModular, trialAccess: controleBeta };
   const hiddenTabOptions = { tabBarButton: () => null, tabBarItemStyle: { display: 'none' } };
   const podeUsar = (modulo) => moduloEstaAtivo(configuracaoModular, modulo, papel) && isModuleEnabled(controleBeta, modulo);
@@ -294,8 +297,11 @@ function AppContent() {
             const icons = {
               Início: 'home',
               Serviços: 'clipboard',
+              Comercial: 'briefcase',
               Ordens: 'add-circle',
               Inventário: 'cube',
+              Preventivas: 'calendar',
+              Equipamentos: 'construct',
               Modelos: 'options',
               Ocorrências: 'warning',
               Clientes: 'people',
@@ -329,6 +335,12 @@ function AppContent() {
           </Tab.Screen>
         ) : null}
 
+        {gestor && podeUsar(MODULOS.COMERCIAL) ? (
+          <Tab.Screen name="Comercial" options={{ title: 'Comercial' }}>
+            {(props) => <ComercialScreen {...props} {...screenProps} />}
+          </Tab.Screen>
+        ) : null}
+
         {gestor && podeUsar(MODULOS.ORDENS) ? (
           <Tab.Screen name="Ordens" options={{ title: 'Ordens de Serviço' }}>
             {(props) => <CadastroPedidoObraScreen {...props} {...screenProps} />}
@@ -338,6 +350,18 @@ function AppContent() {
         {podeUsar(MODULOS.INVENTARIO) ? (
           <Tab.Screen name="Inventário" options={{ title: 'Inventário de Campo' }}>
             {(props) => <LevantamentoPecasScreen {...props} {...screenProps} />}
+          </Tab.Screen>
+        ) : null}
+
+        {podeUsar(MODULOS.MANUTENCAO_PREVENTIVA) ? (
+          <Tab.Screen name="Preventivas" options={{ title: 'ManutenÃ§Ã£o Preventiva' }}>
+            {(props) => <PreventiveMaintenanceScreen {...props} {...screenProps} />}
+          </Tab.Screen>
+        ) : null}
+
+        {podeUsar(MODULOS.INVENTARIO) ? (
+          <Tab.Screen name="Equipamentos" options={{ title: 'Equipamentos Vendidos' }}>
+            {(props) => <EquipmentHistoryScreen {...props} {...screenProps} />}
           </Tab.Screen>
         ) : null}
 
