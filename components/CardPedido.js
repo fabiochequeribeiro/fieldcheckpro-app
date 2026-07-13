@@ -42,7 +42,7 @@ export default function CardPedido({
         onPress={onAbrirMaps}
       >
         <Text style={styles.botaoMapsTexto}>
-          �x� Navegar até o cliente
+          Navegar até o cliente
         </Text>
       </TouchableOpacity>
     </View>

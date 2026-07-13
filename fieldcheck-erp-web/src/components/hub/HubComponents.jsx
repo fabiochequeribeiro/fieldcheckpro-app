@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components */
 import { AlertTriangle, CheckCircle2, Clock3, Loader2 } from 'lucide-react';
 import { formatDate, normalizeStatus, STATUS_LABELS } from '../../shared/status';
 

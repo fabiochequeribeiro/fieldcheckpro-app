@@ -25,6 +25,7 @@ import AppStatusScreen from './screens/AppStatusScreen';
 import BetaExpiredScreen from './screens/BetaExpiredScreen';
 import AppLoginScreen from './screens/AppLoginScreen';
 import AssinaturaScreen from './screens/AssinaturaScreen';
+import DemoExperienceScreen from './screens/DemoExperienceScreen';
 import { supabase } from './supabase';
 import { verificarAcessoComercial } from './services/assinaturaService';
 import { carregarConfiguracaoModular } from './services/configuracaoModularService';
@@ -75,6 +76,7 @@ function AppContent() {
   const [controleBeta, setControleBeta] = useState(null);
   const [onboardingVerificado, setOnboardingVerificado] = useState(false);
   const [onboardingVisto, setOnboardingVisto] = useState(true);
+  const [modoDemo, setModoDemo] = useState(false);
   const [configuracaoModular, setConfiguracaoModular] = useState(() => normalizarConfiguracaoModular());
 
   async function montarUsuarioLogado(user) {
@@ -248,8 +250,9 @@ function AppContent() {
   }
 
   if (!onboardingVerificado || carregandoSessao) return <AppLoginScreen modoCarregando />;
+  if (modoDemo) return <DemoExperienceScreen onExit={() => setModoDemo(false)} />;
   if (!onboardingVisto) return <BetaOnboardingScreen onFinish={concluirOnboardingBeta} />;
-  if (!usuarioLogado) return <AppLoginScreen onLogin={aplicarAcesso} />;
+  if (!usuarioLogado) return <AppLoginScreen onLogin={aplicarAcesso} onDemo={() => setModoDemo(true)} />;
   if (acessoComercial && !acessoComercial.liberado) {
     return (
       <AssinaturaScreen
@@ -354,7 +357,7 @@ function AppContent() {
         ) : null}
 
         {podeUsar(MODULOS.MANUTENCAO_PREVENTIVA) ? (
-          <Tab.Screen name="Preventivas" options={{ title: 'ManutenÃ§Ã£o Preventiva' }}>
+          <Tab.Screen name="Preventivas" options={{ title: 'Manutenção Preventiva' }}>
             {(props) => <PreventiveMaintenanceScreen {...props} {...screenProps} />}
           </Tab.Screen>
         ) : null}

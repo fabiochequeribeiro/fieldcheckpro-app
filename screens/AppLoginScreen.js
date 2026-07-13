@@ -21,7 +21,7 @@ import { comTempoLimite, erroDeTempoLimite } from '../utils/tempoLimite';
 const LOGO = require('../assets/fieldcheckpro-icon.png');
 const STORAGE_EMAIL = '@fieldcheck_login_email';
 
-export default function AppLoginScreen({ onLogin, modoCarregando = false }) {
+export default function AppLoginScreen({ onLogin, onDemo, modoCarregando = false }) {
   const [email, setEmail] = useState('');
   const [senha, setSenha] = useState('');
   const [carregando, setCarregando] = useState(false);
@@ -182,6 +182,15 @@ export default function AppLoginScreen({ onLogin, modoCarregando = false }) {
               </TouchableOpacity>
 
               <TouchableOpacity
+                style={styles.botaoDemo}
+                onPress={onDemo}
+                activeOpacity={0.86}
+              >
+                <Ionicons name="sparkles-outline" size={20} color="#123c69" />
+                <Text style={styles.botaoDemoTexto}>Experimentar agora</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
                 style={styles.esqueciSenha}
                 onPress={() => Alert.alert('Recuperar senha', 'Fluxo preparado para integração futura com recuperação de senha do Supabase.')}
                 activeOpacity={0.85}
@@ -292,6 +301,24 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontWeight: '900',
     fontSize: 17,
+    textAlign: 'center',
+  },
+  botaoDemo: {
+    minHeight: 52,
+    borderRadius: 8,
+    marginTop: 10,
+    borderWidth: 1,
+    borderColor: '#bfdbfe',
+    backgroundColor: '#f8fbff',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  botaoDemoTexto: {
+    color: '#123c69',
+    fontWeight: '900',
+    fontSize: 16,
     textAlign: 'center',
   },
   esqueciSenha: {

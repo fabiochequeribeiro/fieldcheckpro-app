@@ -83,7 +83,7 @@ function normalizeTrial(raw = {}, usuario = {}, nowInfo = { now: new Date(), sou
     trial_end: end.toISOString(),
     trial_status: accessStatus,
     plan_status: planStatus || (accessStatus === 'active_paid' ? 'active_paid' : 'trial'),
-    beta_plan: raw.beta_plan || raw.betaPlan || 'Beta 2.0 - Inteligencia Operacional',
+    beta_plan: raw.beta_plan || raw.betaPlan || 'Preview comercial - Inteligência Operacional',
     modules_enabled: Array.isArray(modules) ? modules : Object.keys(modules || {}).filter((key) => modules[key]),
     days_remaining: daysRemaining,
     is_expired: BLOCKED_STATUSES.has(accessStatus),

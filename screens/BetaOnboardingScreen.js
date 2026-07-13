@@ -7,20 +7,20 @@ const LOGO = require('../assets/fieldcheckpro-icon.png');
 
 const SLIDES = [
   {
-    title: 'Bem-vindo ao FieldCheck Pro 2.0',
-    text: 'Inteligencia Operacional para empresas que executam servicos, inspeções e checklists em campo.',
+    title: 'Bem-vindo ao FieldCheck Pro',
+    text: 'Inteligência operacional para empresas que executam serviços, inspeções e checklists em campo.',
   },
   {
-    title: 'App para tecnicos',
-    text: 'Checklists, fotos, assinaturas, PDF, historico e modo offline para proteger os dados da visita.',
+    title: 'App para técnicos',
+    text: 'Checklists, fotos, assinaturas, PDF, histórico e modo offline para proteger os dados da visita.',
   },
   {
     title: 'FieldCheck Hub',
-    text: 'Portal para gestores acompanharem operacao, usuarios, empresas, relatorios, aprovacoes e feedbacks.',
+    text: 'Portal para gestores acompanharem operação, usuários, empresas, relatórios, aprovações e feedbacks.',
   },
   {
     title: 'FieldCheck AI',
-    text: 'Copiloto para sugerir checklist, gerar resumo inteligente, revisar pendencias e apoiar relatorios.',
+    text: 'Copiloto para sugerir checklist, gerar resumo inteligente, revisar pendências e apoiar relatórios.',
   },
 ];
 
@@ -39,7 +39,7 @@ export default function BetaOnboardingScreen({ onFinish }) {
       <View style={styles.container}>
         <Image source={LOGO} style={styles.logo} />
         <AppCard style={styles.card}>
-          <Text style={styles.eyebrow}>Programa Beta 2.0</Text>
+          <Text style={styles.eyebrow}>Preview comercial</Text>
           <Text style={styles.title}>{slide.title}</Text>
           <Text style={styles.text}>{slide.text}</Text>
           <ProgressBar value={((index + 1) / SLIDES.length) * 100} tone="green" />

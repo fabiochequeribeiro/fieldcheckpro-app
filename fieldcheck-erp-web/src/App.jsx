@@ -725,7 +725,7 @@ export default function App() {
     ['notifications', 'Notificacoes', Bell, null],
     ['approvals', rotuloModulo(configuracaoModular, MODULOS.APROVACOES), CheckCircle2, MODULOS.APROVACOES],
     ['audit', rotuloModulo(configuracaoModular, MODULOS.AUDITORIA), FileClock, MODULOS.AUDITORIA],
-  ].filter(([id, , , modulo]) => currentRole !== 'supervisor' || supervisorViews.has(id))
+  ].filter(([id]) => currentRole !== 'supervisor' || supervisorViews.has(id))
     .filter(([, , , modulo]) => moduloEstaAtivo(configuracaoModular, modulo, currentRole));
   if (isSuperAdmin) navItems.unshift(['superadmin', 'Super Admin', Building2, null]);
   if (['super_admin', 'admin_empresa', 'administrador'].includes(currentRole)) navItems.push(['companies', 'Empresas', Building2, null]);

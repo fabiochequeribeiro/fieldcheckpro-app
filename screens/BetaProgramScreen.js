@@ -18,7 +18,7 @@ export default function BetaProgramScreen({ usuarioLogado }) {
     try {
       setBeta(await carregarControleBeta(usuarioLogado));
     } catch (error) {
-      Alert.alert('Programa Beta', error?.message || 'Nao foi possivel carregar o controle beta.');
+      Alert.alert('Programa Beta', error?.message || 'Não foi possível carregar o controle beta.');
     } finally {
       setLoading(false);
     }
@@ -31,7 +31,7 @@ export default function BetaProgramScreen({ usuarioLogado }) {
       await solicitarProrrogacaoBeta(usuarioLogado, dias);
       Alert.alert('Solicitacao registrada', `Seu pedido de +${dias} dias foi salvo. Nossa equipe entrara em contato.`);
     } catch (error) {
-      Alert.alert('Nao foi possivel solicitar', error?.message || 'Tente novamente mais tarde.');
+      Alert.alert('Não foi possível solicitar', error?.message || 'Tente novamente mais tarde.');
     }
   }
 
@@ -41,11 +41,11 @@ export default function BetaProgramScreen({ usuarioLogado }) {
   return (
     <SafeAreaView style={styles.safe}>
       <ScrollView contentContainerStyle={styles.content}>
-        <AppHeader logo={LOGO} title="Programa Beta" subtitle="FieldCheck Pro 2.0 - Inteligencia Operacional" />
+        <AppHeader logo={LOGO} title="Programa Beta" subtitle="FieldCheck Pro - Inteligência Operacional" />
         <View style={styles.body}>
           <AppCard style={styles.hero}>
             <StatusBadge status={beta?.is_expired ? 'critico' : 'concluido'} label={beta?.trial_status || 'Carregando'} />
-            <Text style={styles.title}>{beta?.beta_plan || 'Beta 2.0'}</Text>
+            <Text style={styles.title}>{beta?.beta_plan || 'Preview comercial'}</Text>
             <Text style={styles.text}>{beta?.is_expired ? 'Seu periodo de testes venceu. Os dados estao preservados para renovacao.' : `${beta?.days_remaining ?? '-'} dia(s) restante(s) para testar com sua equipe.`}</Text>
           </AppCard>
 
@@ -75,7 +75,7 @@ export default function BetaProgramScreen({ usuarioLogado }) {
           <View style={styles.actions}>
             <AppButton title="Solicitar +15 dias" icon="time" onPress={() => pedir(15)} disabled={loading} />
             <AppButton title="Solicitar +30 dias" icon="calendar" variant="secondary" onPress={() => pedir(30)} disabled={loading} />
-            <AppButton title="Falar no WhatsApp" icon="logo-whatsapp" variant="secondary" onPress={() => abrirSuporteWhatsApp('Ola, quero falar sobre o Programa Beta FieldCheck Pro 2.0.')} />
+            <AppButton title="Falar no WhatsApp" icon="logo-whatsapp" variant="secondary" onPress={() => abrirSuporteWhatsApp('Olá, quero falar sobre o Programa Beta FieldCheck Pro.')} />
           </View>
         </View>
       </ScrollView>

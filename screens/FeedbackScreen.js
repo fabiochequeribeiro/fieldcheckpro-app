@@ -51,7 +51,7 @@ export default function FeedbackScreen({ usuarioLogado, trialAccess }) {
       setDificuldade('');
       setSugestao('');
     } catch (error) {
-      Alert.alert('Nao foi possivel enviar', error?.message || 'Seu feedback nao foi perdido. Tente novamente.');
+      Alert.alert('Não foi possível enviar', error?.message || 'Seu feedback não foi perdido. Tente novamente.');
     } finally {
       setSaving(false);
     }
@@ -60,7 +60,7 @@ export default function FeedbackScreen({ usuarioLogado, trialAccess }) {
   return (
     <SafeAreaView style={styles.safe}>
       <ScrollView contentContainerStyle={styles.content}>
-        <AppHeader logo={LOGO} title="Enviar Feedback" subtitle="Ajude a melhorar o FieldCheck Pro 2.0." />
+        <AppHeader logo={LOGO} title="Enviar Feedback" subtitle="Ajude a melhorar o FieldCheck Pro." />
         <View style={styles.body}>
           {lastStatus ? <SyncStatusBadge status={lastStatus === 'sincronizado' ? 'sincronizado' : 'local'} /> : null}
 

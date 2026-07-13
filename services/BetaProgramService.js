@@ -36,7 +36,7 @@ function normalizeBeta(raw = {}, usuario = {}) {
     trial_start: start.toISOString(),
     trial_end: end.toISOString(),
     trial_status: activeStatus,
-    beta_plan: raw.beta_plan || raw.betaPlan || 'Beta 2.0 - Inteligencia Operacional',
+    beta_plan: raw.beta_plan || raw.betaPlan || 'Preview comercial - Inteligência Operacional',
     modules_enabled: raw.modules_enabled || raw.modulesEnabled || [
       'Checklists',
       'Fotos',
@@ -74,7 +74,7 @@ export async function carregarControleBeta(usuario) {
     const trial = await getTrialStatus(usuario);
     return {
       ...trial,
-      beta_plan: trial.beta_plan || 'Beta 2.0 - Inteligencia Operacional',
+      beta_plan: trial.beta_plan || 'Preview comercial - Inteligência Operacional',
       is_expired: trial.blocks_app,
       source: trial.source || 'trialAccessService',
     };

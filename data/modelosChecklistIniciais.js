@@ -14,7 +14,7 @@ export const MODELOS_INICIAIS = {
       texto: 'Cabeçote superior conferido',
     },
     {
-      categoria: 'P�0 DO ELEVADOR',
+      categoria: 'PÉ DO ELEVADOR',
       texto: 'Pé inferior conferido',
     },
     {
@@ -26,15 +26,15 @@ export const MODELOS_INICIAIS = {
       texto: 'Canecas plásticas fixadas',
     },
     {
-      categoria: 'TRANSMISSÒO',
+      categoria: 'TRANSMISSÃO',
       texto: 'Motor fixado corretamente',
     },
     {
-      categoria: 'TRANSMISSÒO',
+      categoria: 'TRANSMISSÃO',
       texto: 'Sentido de rotação testado',
     },
     {
-      categoria: 'SEGURAN�!A',
+      categoria: 'SEGURANÇA',
       texto: 'Proteções instaladas',
     },
     {
@@ -88,19 +88,19 @@ export const MODELOS_INICIAIS = {
       texto: 'Raspadores instalados e regulados',
     },
     {
-      categoria: 'TRANSMISSÒO',
+      categoria: 'TRANSMISSÃO',
       texto: 'Motor fixado corretamente',
     },
     {
-      categoria: 'TRANSMISSÒO',
+      categoria: 'TRANSMISSÃO',
       texto: 'Redutor conferido e sem vazamentos',
     },
     {
-      categoria: 'SEGURAN�!A',
+      categoria: 'SEGURANÇA',
       texto: 'Proteções mecânicas instaladas',
     },
     {
-      categoria: 'SEGURAN�!A',
+      categoria: 'SEGURANÇA',
       texto: 'Adesivos e sinalizações conferidos',
     },
     {
@@ -146,23 +146,23 @@ export const MODELOS_INICIAIS = {
       texto: 'Rolamentos sem ruídos',
     },
     {
-      categoria: 'TRANSMISSÒO',
+      categoria: 'TRANSMISSÃO',
       texto: 'Motor fixado corretamente',
     },
     {
-      categoria: 'TRANSMISSÒO',
+      categoria: 'TRANSMISSÃO',
       texto: 'Acoplamento conferido',
     },
     {
-      categoria: 'TRANSMISSÒO',
+      categoria: 'TRANSMISSÃO',
       texto: 'Sentido de rotação testado',
     },
     {
-      categoria: 'SEGURAN�!A',
+      categoria: 'SEGURANÇA',
       texto: 'Proteções mecânicas instaladas',
     },
     {
-      categoria: 'SEGURAN�!A',
+      categoria: 'SEGURANÇA',
       texto: 'Adesivos e sinalizações conferidos',
     },
     {
@@ -192,11 +192,11 @@ export const MODELOS_INICIAIS = {
       texto: 'Tela da mesa sem avarias',
     },
     {
-      categoria: 'VIBRA�!ÒO',
+      categoria: 'VIBRAÇÃO',
       texto: 'Sistema vibratório conferido',
     },
     {
-      categoria: 'VIBRA�!ÒO',
+      categoria: 'VIBRAÇÃO',
       texto: 'Molas e coxins conferidos',
     },
     {
@@ -212,31 +212,31 @@ export const MODELOS_INICIAIS = {
       texto: 'Registro de ar ajustado',
     },
     {
-      categoria: 'TRANSMISSÒO',
+      categoria: 'TRANSMISSÃO',
       texto: 'Motor fixado corretamente',
     },
     {
-      categoria: 'TRANSMISSÒO',
+      categoria: 'TRANSMISSÃO',
       texto: 'Correias alinhadas e tensionadas',
     },
     {
-      categoria: 'TRANSMISSÒO',
+      categoria: 'TRANSMISSÃO',
       texto: 'Polias conferidas',
     },
     {
-      categoria: 'EL�0TRICA',
+      categoria: 'ELÉTRICA',
       texto: 'Sentido de rotação testado',
     },
     {
-      categoria: 'EL�0TRICA',
+      categoria: 'ELÉTRICA',
       texto: 'Painel elétrico conferido',
     },
     {
-      categoria: 'SEGURAN�!A',
+      categoria: 'SEGURANÇA',
       texto: 'Proteções instaladas',
     },
     {
-      categoria: 'SEGURAN�!A',
+      categoria: 'SEGURANÇA',
       texto: 'Adesivos de segurança conferidos',
     },
     {
@@ -278,39 +278,39 @@ export const MODELOS_INICIAIS = {
       texto: 'Fixação das peneiras conferida',
     },
     {
-      categoria: 'VIBRA�!ÒO',
+      categoria: 'VIBRAÇÃO',
       texto: 'Sistema vibratório conferido',
     },
     {
-      categoria: 'VIBRA�!ÒO',
+      categoria: 'VIBRAÇÃO',
       texto: 'Molas e coxins conferidos',
     },
     {
-      categoria: 'TRANSMISSÒO',
+      categoria: 'TRANSMISSÃO',
       texto: 'Motor fixado corretamente',
     },
     {
-      categoria: 'TRANSMISSÒO',
+      categoria: 'TRANSMISSÃO',
       texto: 'Correias alinhadas e tensionadas',
     },
     {
-      categoria: 'TRANSMISSÒO',
+      categoria: 'TRANSMISSÃO',
       texto: 'Polias conferidas',
     },
     {
-      categoria: 'EL�0TRICA',
+      categoria: 'ELÉTRICA',
       texto: 'Sentido de rotação testado',
     },
     {
-      categoria: 'EL�0TRICA',
+      categoria: 'ELÉTRICA',
       texto: 'Painel elétrico conferido',
     },
     {
-      categoria: 'SEGURAN�!A',
+      categoria: 'SEGURANÇA',
       texto: 'Proteções instaladas',
     },
     {
-      categoria: 'SEGURAN�!A',
+      categoria: 'SEGURANÇA',
       texto: 'Adesivos de segurança conferidos',
     },
     {
@@ -336,11 +336,11 @@ export const MODELOS_INICIAIS = {
       texto: 'Chaparias e portas de inspeção conferidas',
     },
     {
-      categoria: 'P�0 DO ELEVADOR',
+      categoria: 'PÉ DO ELEVADOR',
       texto: 'Tambor inferior conferido',
     },
     {
-      categoria: 'P�0 DO ELEVADOR',
+      categoria: 'PÉ DO ELEVADOR',
       texto: 'Sistema de esticamento conferido',
     },
     {
@@ -376,31 +376,31 @@ export const MODELOS_INICIAIS = {
       texto: 'Fluxo interno sem obstruções',
     },
     {
-      categoria: 'TRANSMISSÒO',
+      categoria: 'TRANSMISSÃO',
       texto: 'Motor fixado corretamente',
     },
     {
-      categoria: 'TRANSMISSÒO',
+      categoria: 'TRANSMISSÃO',
       texto: 'Redutor conferido',
     },
     {
-      categoria: 'TRANSMISSÒO',
+      categoria: 'TRANSMISSÃO',
       texto: 'Acoplamentos conferidos',
     },
     {
-      categoria: 'EL�0TRICA',
+      categoria: 'ELÉTRICA',
       texto: 'Sentido de rotação testado',
     },
     {
-      categoria: 'EL�0TRICA',
+      categoria: 'ELÉTRICA',
       texto: 'Painel elétrico conferido',
     },
     {
-      categoria: 'SEGURAN�!A',
+      categoria: 'SEGURANÇA',
       texto: 'Proteções mecânicas instaladas',
     },
     {
-      categoria: 'SEGURAN�!A',
+      categoria: 'SEGURANÇA',
       texto: 'Adesivos e sinalizações conferidos',
     },
     {
@@ -426,11 +426,11 @@ export const MODELOS_INICIAIS = {
       texto: 'Chaparias e portas de inspeção conferidas',
     },
     {
-      categoria: 'P�0 DO ELEVADOR',
+      categoria: 'PÉ DO ELEVADOR',
       texto: 'Tambor inferior conferido',
     },
     {
-      categoria: 'P�0 DO ELEVADOR',
+      categoria: 'PÉ DO ELEVADOR',
       texto: 'Sistema de esticamento conferido',
     },
     {
@@ -462,31 +462,31 @@ export const MODELOS_INICIAIS = {
       texto: 'Canecas sem avarias',
     },
     {
-      categoria: 'TRANSMISSÒO',
+      categoria: 'TRANSMISSÃO',
       texto: 'Motor fixado corretamente',
     },
     {
-      categoria: 'TRANSMISSÒO',
+      categoria: 'TRANSMISSÃO',
       texto: 'Redutor conferido',
     },
     {
-      categoria: 'TRANSMISSÒO',
+      categoria: 'TRANSMISSÃO',
       texto: 'Acoplamentos conferidos',
     },
     {
-      categoria: 'EL�0TRICA',
+      categoria: 'ELÉTRICA',
       texto: 'Sentido de rotação testado',
     },
     {
-      categoria: 'EL�0TRICA',
+      categoria: 'ELÉTRICA',
       texto: 'Painel elétrico conferido',
     },
     {
-      categoria: 'SEGURAN�!A',
+      categoria: 'SEGURANÇA',
       texto: 'Proteções mecânicas instaladas',
     },
     {
-      categoria: 'SEGURAN�!A',
+      categoria: 'SEGURANÇA',
       texto: 'Adesivos e sinalizações conferidos',
     },
     {
@@ -512,11 +512,11 @@ export const MODELOS_INICIAIS = {
       texto: 'Chaparias sem avarias',
     },
     {
-      categoria: 'VEDA�!ÒO',
+      categoria: 'VEDAÇÃO',
       texto: 'Vedação das tampas conferida',
     },
     {
-      categoria: 'VEDA�!ÒO',
+      categoria: 'VEDAÇÃO',
       texto: 'Portas de inspeção conferidas',
     },
     {
@@ -536,19 +536,19 @@ export const MODELOS_INICIAIS = {
       texto: 'Acionamentos funcionando corretamente',
     },
     {
-      categoria: 'EL�0TRICA',
+      categoria: 'ELÉTRICA',
       texto: 'Sensores instalados corretamente',
     },
     {
-      categoria: 'EL�0TRICA',
+      categoria: 'ELÉTRICA',
       texto: 'Cabos e conexões conferidos',
     },
     {
-      categoria: 'SEGURAN�!A',
+      categoria: 'SEGURANÇA',
       texto: 'Proteções instaladas',
     },
     {
-      categoria: 'SEGURAN�!A',
+      categoria: 'SEGURANÇA',
       texto: 'Adesivos e sinalizações conferidos',
     },
     {
@@ -586,11 +586,11 @@ export const MODELOS_INICIAIS = {
       texto: 'Chaparias sem avarias',
     },
     {
-      categoria: 'FIXA�!ÒO',
+      categoria: 'FIXAÇÃO',
       texto: 'Chumbadores conferidos',
     },
     {
-      categoria: 'FIXA�!ÒO',
+      categoria: 'FIXAÇÃO',
       texto: 'Bases e apoios fixados corretamente',
     },
     {
@@ -622,23 +622,23 @@ export const MODELOS_INICIAIS = {
       texto: 'Ausência de corrosão',
     },
     {
-      categoria: 'SEGURAN�!A',
+      categoria: 'SEGURANÇA',
       texto: 'Proteções instaladas',
     },
     {
-      categoria: 'SEGURAN�!A',
+      categoria: 'SEGURANÇA',
       texto: 'Adesivos e sinalizações conferidos',
     },
     {
-      categoria: 'SEGURAN�!A',
+      categoria: 'SEGURANÇA',
       texto: 'Itens NR-12 conferidos',
     },
     {
-      categoria: 'FINALIZA�!ÒO',
+      categoria: 'FINALIZAÇÃO',
       texto: 'Limpeza final realizada',
     },
     {
-      categoria: 'FINALIZA�!ÒO',
+      categoria: 'FINALIZAÇÃO',
       texto: 'Inspeção final aprovada',
     },
   ],

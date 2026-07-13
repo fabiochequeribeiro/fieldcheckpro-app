@@ -549,7 +549,7 @@ export default function MainScreen({ navigation, usuarioLogado, acessoComercial,
           <AppCard style={styles.betaCard}>
             <Text style={styles.betaEyebrow}>Programa Beta ativo</Text>
             <Text style={styles.betaTitle}>{betaProgram?.days_remaining ?? '-'} dia(s) restantes</Text>
-            <Text style={styles.betaText}>Teste o FieldCheck Pro 2.0 com checklists, fotos, assinatura, PDF, offline e IA Assistente.</Text>
+            <Text style={styles.betaText}>Teste o FieldCheck Pro com checklists, fotos, assinatura, PDF, offline e IA Assistente.</Text>
             <View style={styles.betaActions}>
               <AppButton title="Enviar feedback" icon="chatbox-ellipses" onPress={() => navigation.navigate('Feedback', { usuarioLogado })} />
               <AppButton title="Solicitar prorrogação" icon="time" variant="secondary" onPress={pedirProrrogacaoHome} />
