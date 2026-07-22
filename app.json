@@ -7,6 +7,14 @@
     "icon": "./assets/fieldcheckpro-icon.png",
     "userInterfaceStyle": "light",
     "newArchEnabled": true,
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/9f9d2bba-df8e-4880-8690-4b8d2395b5ef",
+      "fallbackToCacheTimeout": 0,
+      "checkAutomatically": "ON_LOAD"
+    },
     "splash": {
       "image": "./assets/fieldcheckpro-icon.png",
       "resizeMode": "contain",

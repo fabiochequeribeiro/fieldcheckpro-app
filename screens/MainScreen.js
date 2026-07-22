@@ -289,6 +289,15 @@ export default function MainScreen({ navigation, usuarioLogado, acessoComercial,
 
   const atalhosBase = [
     {
+      titulo: 'Central FieldCheck',
+      descricao: 'Portal, licenca, instalacao, atualizacoes, expedicao e suporte.',
+      icone: 'grid',
+      rota: 'Central FieldCheck',
+      modulo: null,
+      cor: '#0f766e',
+      fundo: '#e6fffb',
+    },
+    {
       titulo: 'Serviços de campo',
       descricao: 'Executar checklists, salvar visitas e gerar relatórios.',
       icone: 'clipboard',

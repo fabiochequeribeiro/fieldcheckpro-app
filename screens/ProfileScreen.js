@@ -55,6 +55,11 @@ export default function ProfileScreen({ navigation, usuarioLogado, onLogout }) {
           <SectionTitle title="Seguranca e suporte" subtitle="Acoes rapidas" />
           <View style={styles.actions}>
             <AppButton
+              title="Central FieldCheck"
+              icon="grid"
+              onPress={() => navigation.navigate('Central FieldCheck', { usuarioLogado })}
+            />
+            <AppButton
               title="Programa Beta"
               icon="flask"
               variant="secondary"

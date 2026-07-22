@@ -12,6 +12,7 @@ import {
 import { fieldCheckTheme as theme } from '../theme/fieldCheckTheme';
 import {
   FIELD_CHECK_AI_CAPABILITIES,
+  askFieldCheckAi,
   answerTechnicalCopilot,
   buildAiReadiness,
   suggestPendingActions,
@@ -27,6 +28,7 @@ const LOGO = require('../assets/fieldcheckpro-icon.png');
 export default function AiAssistantScreen({ navigation, usuarioLogado }) {
   const [question, setQuestion] = useState('');
   const [answer, setAnswer] = useState('');
+  const [asking, setAsking] = useState(false);
   const readiness = useMemo(() => buildAiReadiness(), []);
   const backendReadiness = useMemo(() => getAIBackendReadiness(), []);
   const pendingMock = useMemo(() => suggestPendingActions({}), []);
@@ -35,8 +37,17 @@ export default function AiAssistantScreen({ navigation, usuarioLogado }) {
   const [budgetMock, setBudgetMock] = useState(null);
   const [maintenanceMock, setMaintenanceMock] = useState(null);
 
-  function runCopilot() {
-    setAnswer(answerTechnicalCopilot(question));
+  async function runCopilot() {
+    if (!question.trim() || asking) return;
+    setAsking(true);
+    try {
+      setAnswer(await askFieldCheckAi(question, {
+        empresa: usuarioLogado?.tecnico?.empresa || usuarioLogado?.empresa || '',
+        perfil: usuarioLogado?.tecnico?.perfil || usuarioLogado?.perfil || 'tecnico',
+      }));
+    } catch (error) {
+      setAnswer(`${answerTechnicalCopilot(question)}\n\nModo offline: ${error?.message || 'backend indisponivel'}`);
+    } finally { setAsking(false); }
   }
 
   async function runPhotoMock() {
@@ -75,7 +86,7 @@ export default function AiAssistantScreen({ navigation, usuarioLogado }) {
         <View style={styles.body}>
           <AiCard
             title="Assistente FieldCheck"
-            description="IA mockada/local, sem chave no app. O modo manual continua funcionando sempre."
+            description="IA real via backend seguro, sem chave no app. O modo manual continua funcionando sempre."
             onPress={openChecklistFlow}
           />
 
@@ -99,7 +110,7 @@ export default function AiAssistantScreen({ navigation, usuarioLogado }) {
             ))}
           </View>
 
-          <SectionTitle title="Copiloto tecnico" subtitle="Estrutura visual pronta para IA real via backend seguro." />
+          <SectionTitle title="Copiloto tecnico" subtitle="Conectado ao backend seguro, com orientacao local quando estiver offline." />
           <AppCard>
             <Text style={styles.label}>Perguntar a IA</Text>
             <TextInput
@@ -110,9 +121,9 @@ export default function AiAssistantScreen({ navigation, usuarioLogado }) {
               multiline
               style={styles.input}
             />
-            <TouchableOpacity style={styles.askButton} onPress={runCopilot} activeOpacity={0.86}>
+            <TouchableOpacity style={styles.askButton} onPress={runCopilot} activeOpacity={0.86} disabled={asking}>
               <Ionicons name="sparkles" size={18} color="#fff" />
-              <Text style={styles.askText}>Sugerir proximos passos</Text>
+              <Text style={styles.askText}>{asking ? 'Analisando...' : 'Perguntar ao FieldCheck AI'}</Text>
             </TouchableOpacity>
             {answer ? <Text style={styles.answer}>{answer}</Text> : null}
           </AppCard>

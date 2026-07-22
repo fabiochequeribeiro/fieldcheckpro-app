@@ -6,6 +6,10 @@ import {
   generateFallbackSummary,
   generateVisitSummary,
 } from './visitSummaryService';
+import { supabase } from '../supabase';
+
+const FIELD_CHECK_AI_URL = process.env.EXPO_PUBLIC_FIELDCHECK_AI_URL
+  || 'https://brs-erp-web.vercel.app/api/fieldcheck-ai';
 
 export const FIELD_CHECK_AI_CAPABILITIES = [
   {
@@ -36,12 +40,32 @@ export const FIELD_CHECK_AI_CAPABILITIES = [
 
 export function buildAiReadiness() {
   return {
-    mode: 'mock_local',
+    mode: 'backend_seguro_com_fallback_local',
     safeForProduction: true,
     manualFallback: true,
     requiresBackend: 'Supabase Edge Function ou API propria para IA real',
     storesApiKeyInApp: false,
   };
+}
+
+export async function askFieldCheckAi(question, context = {}) {
+  const prompt = String(question || '').trim();
+  if (!prompt) throw new Error('Escreva uma pergunta para o FieldCheck AI.');
+  const { data } = await supabase.auth.getSession();
+  if (!data.session?.access_token) throw new Error('Entre novamente para usar o FieldCheck AI.');
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 20000);
+  try {
+    const response = await fetch(FIELD_CHECK_AI_URL, {
+      method: 'POST',
+      signal: controller.signal,
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${data.session.access_token}` },
+      body: JSON.stringify({ question: prompt, context, source: 'app' }),
+    });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(payload.error || 'FieldCheck AI indisponivel.');
+    return payload.answer;
+  } finally { clearTimeout(timeout); }
 }
 
 export async function suggestChecklistForEquipment({ equipamento = {}, modulo = '', itensAtuais = [], possuiFoto = false } = {}) {

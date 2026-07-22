@@ -22,6 +22,7 @@ import BetaOnboardingScreen from './screens/BetaOnboardingScreen';
 import BetaProgramScreen from './screens/BetaProgramScreen';
 import FeedbackScreen from './screens/FeedbackScreen';
 import AppStatusScreen from './screens/AppStatusScreen';
+import PlatformCenterScreen from './screens/PlatformCenterScreen';
 import BetaExpiredScreen from './screens/BetaExpiredScreen';
 import AppLoginScreen from './screens/AppLoginScreen';
 import AssinaturaScreen from './screens/AssinaturaScreen';
@@ -315,6 +316,7 @@ function AppContent() {
               'Programa Beta': 'flask',
               Feedback: 'chatbox-ellipses',
               'Status do App': 'pulse',
+              'Central FieldCheck': 'grid',
             };
             return <Ionicons name={icons[route.name] || 'ellipse'} size={size} color={color} />;
           },
@@ -398,6 +400,10 @@ function AppContent() {
 
         <Tab.Screen name="Perfil" options={{ title: 'Perfil' }}>
           {(props) => <ProfileScreen {...props} {...screenProps} onLogout={sairDoAplicativo} />}
+        </Tab.Screen>
+
+        <Tab.Screen name="Central FieldCheck" options={{ title: 'Central FieldCheck', ...hiddenTabOptions }}>
+          {(props) => <PlatformCenterScreen {...props} {...screenProps} />}
         </Tab.Screen>
 
         <Tab.Screen name="Programa Beta" options={{ title: 'Programa Beta', ...hiddenTabOptions }}>
