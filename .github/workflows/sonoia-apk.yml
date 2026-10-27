@@ -1,0 +1,42 @@
+name: SonoIA - Compilar APK Android de teste
+on:
+  push:
+    branches:
+      - experimentos/sonoia-apk
+    paths:
+      - '.github/workflows/sonoia-apk.yml'
+      - 'sonoia/**'
+  workflow_dispatch:
+jobs:
+  gerar-apk:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+      - name: Instalar Android SDK 35
+        run: sdkmanager --install 'platforms;android-35' 'build-tools;35.0.0'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.11.1'
+      - name: Preparar codigo-fonte do SonoIA
+        shell: bash
+        run: |
+          mkdir -p "$RUNNER_TEMP/sonoia-project"
+          base64 --decode sonoia/sonoia-src.tar.xz.b64 | tar -xJ -C "$RUNNER_TEMP/sonoia-project"
+      - name: Gerar APK debug
+        shell: bash
+        run: |
+          cd "$RUNNER_TEMP/sonoia-project"
+          gradle --no-daemon :app:assembleDebug
+      - name: Publicar APK para baixar
+        uses: actions/upload-artifact@v4
+        with:
+          name: SonoIA-Android-APK-debug
+          path: ${{ runner.temp }}/sonoia-project/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
